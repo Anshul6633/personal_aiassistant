@@ -3,9 +3,11 @@ FROM mcr.microsoft.com/playwright/python:v1.48.0-noble
 
 WORKDIR /app
 
-ENV PYTHONUNBUFFERED=1
-ENV HEADLESS=true
-ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1 \
+    HEADLESS=true \
+    DEBIAN_FRONTEND=noninteractive \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PATH="/opt/venv/bin:$PATH"
 
 # Install ffmpeg for autonomous video editing and libportaudio2 for audio
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,7 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libportaudio2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Create dedicated virtual environment to comply with Ubuntu Noble PEP 668
+RUN python3 -m venv /opt/venv && \
+    pip install --no-cache-dir --upgrade pip
+
+# Install Python dependencies inside virtual environment
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
