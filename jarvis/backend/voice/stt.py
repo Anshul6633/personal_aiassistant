@@ -13,7 +13,15 @@ from typing import Dict, List, Any, Optional, Tuple
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+    HAS_WHISPER = True
+except Exception as e:
+    WhisperModel = None
+    HAS_WHISPER = False
+    logger_init = logging.getLogger("JARVIS.STT")
+    logger_init.info(f"faster-whisper optional library not loaded: {e}")
+
 from jarvis.backend.config.settings import settings
 
 logger = logging.getLogger("JARVIS.STT")
@@ -22,7 +30,7 @@ logger = logging.getLogger("JARVIS.STT")
 class SpeechToTextEngine:
     def __init__(self):
         self.model_size = settings.WHISPER_MODEL_SIZE  # e.g. "small" or "base"
-        self._model: Optional[WhisperModel] = None
+        self._model: Optional[Any] = None
         self.device = "cuda" if settings.WHISPER_DEVICE == "cuda" else "cpu"
         self.compute_type = settings.WHISPER_COMPUTE_TYPE
 

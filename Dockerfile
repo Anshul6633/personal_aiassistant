@@ -1,34 +1,48 @@
-# Multi-stage production container build for JARVIS
-
-# Stage 1: Build React SPA
-FROM node:20-alpine AS frontend-builder
-WORKDIR /app/frontend
-COPY jarvis/frontend/package*.json ./
-RUN npm install
-COPY jarvis/frontend/ ./
-RUN npm run build
-
-# Stage 2: Python Backend Runtime
+# Production Docker Container for JARVIS Autonomous Assistant
 FROM python:3.12-slim
+
 WORKDIR /app
 
-# Install system dependencies (ffmpeg for video/audio pipeline, git, OpenGL)
+# Install system dependencies:
+# - ffmpeg: audio & video processing pipeline
+# - curl & git: cloud sync & downloads
+# - libportaudio2: audio stream support
+# - libgl1 & libglib2.0-0: headless OpenCV support
+# - Headless browser libraries for Playwright Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     git \
+    sudo \
+    libportaudio2 \
     libgl1 \
     libglib2.0-0 \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python dependencies and Playwright Chromium headless browser
+# Install Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN playwright install chromium --with-deps
 
-# Copy source tree and built frontend bundle
+# Install Playwright Chromium headless binary
+RUN playwright install chromium
+
+# Copy application source tree (includes pre-built frontend dist)
 COPY jarvis/ /app/jarvis/
-COPY --from=frontend-builder /app/frontend/dist /app/jarvis/frontend/dist
 
 # Expose production port
 EXPOSE 8000

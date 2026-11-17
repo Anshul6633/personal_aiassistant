@@ -19,7 +19,11 @@ SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 class ScreenObserver:
     def __init__(self):
-        self._sct = mss.mss()
+        try:
+            self._sct = mss.mss()
+        except Exception as e:
+            logger.info(f"MSS initialized in virtual display mode: {e}")
+            self._sct = None
 
     def capture_fullscreen(self, save_file: bool = True) -> Dict[str, Any]:
         """Capture the primary display monitor with multiple fallback mechanisms."""
@@ -28,13 +32,14 @@ class ScreenObserver:
         height = 1080
 
         # Method 1: Try MSS (fastest on Windows)
-        try:
-            monitor = self._sct.monitors[1]
-            sct_img = self._sct.grab(monitor)
-            img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-            width, height = sct_img.width, sct_img.height
-        except Exception as e:
-            logger.warning(f"MSS grab failed ({e}); falling back to PIL.ImageGrab")
+        if self._sct:
+            try:
+                monitor = self._sct.monitors[1]
+                sct_img = self._sct.grab(monitor)
+                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                width, height = sct_img.width, sct_img.height
+            except Exception as e:
+                logger.warning(f"MSS grab failed ({e}); falling back to PIL.ImageGrab")
 
         # Method 2: Fallback to PIL ImageGrab
         if img is None:

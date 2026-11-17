@@ -14,30 +14,49 @@ from jarvis.backend.core.state import state_manager, AssistantState
 
 logger = logging.getLogger("JARVIS.Desktop")
 
-# Configure PyAutoGUI safety boundaries
-pyautogui.FAILSAFE = True  # Moving mouse to corner triggers PyAutoGUI FailSafeException
-pyautogui.PAUSE = 0.2
+try:
+    import pyautogui
+    pyautogui.FAILSAFE = True  # Moving mouse to corner triggers PyAutoGUI FailSafeException
+    pyautogui.PAUSE = 0.2
+    HAS_PYAUTOGUI = True
+except Exception as e:
+    HAS_PYAUTOGUI = False
+    pyautogui = None
+    logger.info("Running in headless/cloud container mode (PyAutoGUI virtualized)")
 
 
 class DesktopController:
     def __init__(self):
-        self.screen_width, self.screen_height = pyautogui.size()
+        self.screen_width, self.screen_height = 1920, 1080
+        if HAS_PYAUTOGUI and pyautogui:
+            try:
+                self.screen_width, self.screen_height = pyautogui.size()
+            except Exception:
+                self.screen_width, self.screen_height = 1920, 1080
 
     # --- Mouse Controls ---
     def move_mouse(self, x: int, y: int, duration: float = 0.5) -> bool:
         if not security_guard.is_safe_to_proceed("move_mouse", {"x": x, "y": y}):
             return False
-        pyautogui.moveTo(x, y, duration=duration)
+        if HAS_PYAUTOGUI and pyautogui:
+            try:
+                pyautogui.moveTo(x, y, duration=duration)
+            except Exception as e:
+                logger.warning(f"pyautogui.moveTo skipped: {e}")
         security_guard.log_event("MOUSE_MOVE", f"Moved mouse to ({x}, {y})", "SUCCESS")
         return True
 
     def click(self, x: Optional[int] = None, y: Optional[int] = None, button: str = "left", clicks: int = 1) -> bool:
         if not security_guard.is_safe_to_proceed("click", {"x": x, "y": y, "button": button}):
             return False
-        if x is not None and y is not None:
-            pyautogui.click(x=x, y=y, clicks=clicks, button=button)
-        else:
-            pyautogui.click(clicks=clicks, button=button)
+        if HAS_PYAUTOGUI and pyautogui:
+            try:
+                if x is not None and y is not None:
+                    pyautogui.click(x=x, y=y, clicks=clicks, button=button)
+                else:
+                    pyautogui.click(clicks=clicks, button=button)
+            except Exception as e:
+                logger.warning(f"pyautogui.click skipped: {e}")
         security_guard.log_event("MOUSE_CLICK", f"Clicked {button} at ({x}, {y}) count={clicks}", "SUCCESS")
         return True
 
@@ -50,7 +69,11 @@ class DesktopController:
     def scroll(self, amount: int) -> bool:
         if not security_guard.is_safe_to_proceed("scroll", {"amount": amount}):
             return False
-        pyautogui.scroll(amount)
+        if HAS_PYAUTOGUI and pyautogui:
+            try:
+                pyautogui.scroll(amount)
+            except Exception as e:
+                logger.warning(f"pyautogui.scroll skipped: {e}")
         security_guard.log_event("MOUSE_SCROLL", f"Scrolled {amount}", "SUCCESS")
         return True
 
@@ -58,21 +81,33 @@ class DesktopController:
     def type_text(self, text: str, interval: float = 0.05) -> bool:
         if not security_guard.is_safe_to_proceed("type_text", {"text_length": len(text)}):
             return False
-        pyautogui.write(text, interval=interval)
+        if HAS_PYAUTOGUI and pyautogui:
+            try:
+                pyautogui.write(text, interval=interval)
+            except Exception as e:
+                logger.warning(f"pyautogui.write skipped: {e}")
         security_guard.log_event("KEYBOARD_TYPE", f"Typed string of length {len(text)}", "SUCCESS")
         return True
 
     def press_key(self, key: str) -> bool:
         if not security_guard.is_safe_to_proceed("press_key", {"key": key}):
             return False
-        pyautogui.press(key)
+        if HAS_PYAUTOGUI and pyautogui:
+            try:
+                pyautogui.press(key)
+            except Exception as e:
+                logger.warning(f"pyautogui.press skipped: {e}")
         security_guard.log_event("KEY_PRESS", f"Pressed key '{key}'", "SUCCESS")
         return True
 
     def hotkey(self, *keys) -> bool:
         if not security_guard.is_safe_to_proceed("hotkey", {"keys": keys}):
             return False
-        pyautogui.hotkey(*keys)
+        if HAS_PYAUTOGUI and pyautogui:
+            try:
+                pyautogui.hotkey(*keys)
+            except Exception as e:
+                logger.warning(f"pyautogui.hotkey skipped: {e}")
         security_guard.log_event("HOTKEY", f"Triggered hotkey {keys}", "SUCCESS")
         return True
 

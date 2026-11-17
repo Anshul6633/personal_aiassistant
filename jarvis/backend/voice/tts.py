@@ -12,7 +12,12 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 import edge_tts
-import pyttsx3
+try:
+    import pyttsx3
+    HAS_PYTTSX3 = True
+except Exception as e:
+    HAS_PYTTSX3 = False
+    pyttsx3 = None
 from jarvis.backend.config.settings import OUTPUT_DIR, settings
 
 logger = logging.getLogger("JARVIS.TTS")

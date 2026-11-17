@@ -9,9 +9,18 @@ import math
 import asyncio
 import logging
 import threading
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 import numpy as np
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+    HAS_SOUNDDEVICE = True
+except Exception as e:
+    HAS_SOUNDDEVICE = False
+    sd = None
+    logger_init = logging.getLogger("JARVIS.WakeWord")
+    logger_init.info(f"sounddevice not active (cloud/container mode): {e}")
+
 from jarvis.backend.core.state import state_manager, AssistantState
 
 logger = logging.getLogger("JARVIS.WakeWord")
@@ -22,7 +31,7 @@ class WakeWordListener:
         self.sample_rate = sample_rate
         self.chunk_size = int(sample_rate * (chunk_duration_ms / 1000.0))
         self.is_listening = False
-        self._stream: Optional[sd.InputStream] = None
+        self._stream: Optional[Any] = None
         self._thread: Optional[threading.Thread] = None
         self.energy_threshold = 0.045
         self.on_speech_detected_callback: Optional[Callable] = None
@@ -138,6 +147,10 @@ class WakeWordListener:
     def start_listening(self, callback: Optional[Callable] = None):
         """Start non-blocking microphone stream."""
         if self.is_listening:
+            return
+
+        if not HAS_SOUNDDEVICE or sd is None:
+            logger.info("Microphone input bypassed in cloud/headless mode.")
             return
 
         self.on_speech_detected_callback = callback
