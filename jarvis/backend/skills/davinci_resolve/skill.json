@@ -1,0 +1,15 @@
+{
+  "name": "davinci_resolve",
+  "version": "1.0.0",
+  "description": "Professional DaVinci Resolve Studio automation bridge and universal FCPXML 9:16 vertical timeline generator.",
+  "author": "JARVIS Video Factory",
+  "permission": "SAFE",
+  "intents": [
+    "export to davinci",
+    "davinci resolve",
+    "send to davinci",
+    "davinci timeline",
+    "davinci resolve export",
+    "fcpxml export"
+  ]
+}

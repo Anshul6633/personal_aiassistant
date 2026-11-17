@@ -1,0 +1,13 @@
+{
+  "name": "video_factory",
+  "version": "1.0.0",
+  "description": "Autonomous YouTube Shorts and Instagram Reels clipping, scoring, subtitle styling and rendering factory.",
+  "author": "JARVIS Core",
+  "permission": "SAFE",
+  "intents": [
+    "make reels",
+    "create shorts",
+    "start clipping",
+    "render clip"
+  ]
+}

@@ -1,0 +1,90 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Sensitive Credentials & Auth Data
+client_secret*.json
+token*.json
+credentials*.json
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# Browser Session Profiles & Auth Cookies
+jarvis/browser_profile/
+browser_profile/
+jarvis/playwright_profile/
+playwright_profile/
+playwright-report/
+test-results/
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Databases & Runtime State
+*.sqlite
+*.sqlite3
+*.db
+jarvis/database.sqlite
+jarvis/backend/database/*.sqlite
+jarvis/backend/database/*.db
+jarvis/backend/video/studio/studio.db
+
+# Heavy Binaries & Executables (FFmpeg, DLLs)
+jarvis/assets/bin/
+bin/
+*.exe
+*.dll
+
+# Output Media & Render Cache
+jarvis/output/
+output/
+scratch/
+*.wav
+*.mp3
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.ts
+*.webm
+*.png
+*.jpg
+*.jpeg
+
+# Windows OS / IDE files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Diagnostic & Test Dumps
+test_*.wav
+sapi_*.wav
+worker.wav
+t1.wav
+t2.wav
+direct_sapi.wav

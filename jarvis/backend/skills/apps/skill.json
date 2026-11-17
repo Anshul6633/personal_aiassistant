@@ -1,0 +1,13 @@
+{
+  "name": "apps",
+  "version": "1.0.0",
+  "description": "Windows desktop application launcher and process manager.",
+  "author": "JARVIS Core",
+  "permission": "SAFE",
+  "intents": [
+    "open chrome",
+    "open vs code",
+    "open notepad",
+    "open explorer"
+  ]
+}

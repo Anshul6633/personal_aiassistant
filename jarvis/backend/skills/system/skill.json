@@ -1,0 +1,15 @@
+{
+  "name": "system",
+  "version": "1.0.0",
+  "description": "Windows system diagnostics, hardware telemetry, and workstation lock control.",
+  "author": "JARVIS Core",
+  "permission": "SAFE",
+  "intents": [
+    "battery",
+    "hardware check",
+    "system status",
+    "lock pc",
+    "screenshot",
+    "minimize all"
+  ]
+}

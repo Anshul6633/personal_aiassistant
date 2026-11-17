@@ -1,0 +1,14 @@
+{
+  "name": "long_video_to_shorts",
+  "version": "1.0.0",
+  "description": "Slice and re-frame long videos/podcasts into multiple 9:16 vertical short clips with animated subtitles.",
+  "author": "JARVIS Video Factory",
+  "permission": "SAFE",
+  "intents": [
+    "split video",
+    "convert to shorts",
+    "cut into reels",
+    "multiple shorts",
+    "long video to shorts"
+  ]
+}

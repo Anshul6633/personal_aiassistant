@@ -1,0 +1,19 @@
+services:
+  jarvis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis_production
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - PRIMARY_MODEL=qwen2.5:1.5b
+      - FALLBACK_MODEL=qwen2.5:1.5b
+    volumes:
+      - ./jarvis/output:/app/jarvis/output
+      - ./jarvis/backend/database:/app/jarvis/backend/database
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
