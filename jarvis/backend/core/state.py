@@ -1,5 +1,6 @@
 """Reactive System State and Real-time Broadcast Engine for JARVIS."""
 
+import os
 import asyncio
 import json
 import logging
@@ -76,7 +77,8 @@ class StateManager:
         """Poll Windows system metrics using psutil."""
         try:
             mem = psutil.virtual_memory()
-            disk = psutil.disk_usage("C:\\")
+            disk_path = "C:\\" if os.name == "nt" else "/"
+            disk = psutil.disk_usage(disk_path)
             battery = psutil.sensors_battery()
 
             self.state.metrics.cpu_percent = psutil.cpu_percent(interval=None)

@@ -17,7 +17,10 @@ import logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-import gdown
+try:
+    import gdown
+except ImportError:
+    gdown = None
 
 from jarvis.backend.config.settings import WORKSPACE_ROOT
 from jarvis.backend.database.db import get_db_connection

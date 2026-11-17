@@ -38,17 +38,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Chromium headless binary
+# Configure Playwright global browser cache & install Chromium
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install chromium
 
 # Copy application source tree (includes pre-built frontend dist)
 COPY jarvis/ /app/jarvis/
 
-# Expose production port
-EXPOSE 8000
+# Expose production ports
+EXPOSE 8000 10000
 
 ENV PYTHONUNBUFFERED=1
 ENV HEADLESS=true
 
-# Render dynamically injects $PORT; fallback to 8000 if not set
-CMD ["sh", "-c", "python -m uvicorn jarvis.backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Render dynamically injects $PORT (defaults to 10000 on free tier)
+CMD ["sh", "-c", "python -m uvicorn jarvis.backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]

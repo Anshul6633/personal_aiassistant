@@ -46,6 +46,11 @@ google-auth-httplib2>=0.2.0
 # Browser Automation (YouTube Studio & Instagram)
 playwright>=1.48.0
 
+# Batch Ingestion & Compression
+gdown>=5.2.0
+starlette>=0.38.0
+
+
 
 
 

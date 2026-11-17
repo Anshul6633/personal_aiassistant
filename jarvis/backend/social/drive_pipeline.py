@@ -10,7 +10,10 @@ import uuid
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-import gdown
+try:
+    import gdown
+except ImportError:
+    gdown = None
 
 from jarvis.backend.config.settings import WORKSPACE_ROOT
 from jarvis.backend.social.youtube_browser import youtube_browser
