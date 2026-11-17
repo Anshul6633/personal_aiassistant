@@ -4,7 +4,7 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY jarvis/frontend/package*.json ./
-RUN npm ci --silent
+RUN npm install
 COPY jarvis/frontend/ ./
 RUN npm run build
 
@@ -12,11 +12,13 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 
-# Install system dependencies (ffmpeg for video/audio pipeline)
+# Install system dependencies (ffmpeg for video/audio pipeline, git, OpenGL)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     git \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies and Playwright Chromium headless browser
@@ -28,10 +30,11 @@ RUN playwright install chromium --with-deps
 COPY jarvis/ /app/jarvis/
 COPY --from=frontend-builder /app/frontend/dist /app/jarvis/frontend/dist
 
-# Expose single production port
+# Expose production port
 EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1
+ENV HEADLESS=true
 
-CMD ["python", "-m", "uvicorn", "jarvis.backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
+# Render dynamically injects $PORT; fallback to 8000 if not set
+CMD ["sh", "-c", "python -m uvicorn jarvis.backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
