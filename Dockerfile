@@ -6,8 +6,7 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     HEADLESS=true \
     DEBIAN_FRONTEND=noninteractive \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    PATH="/opt/venv/bin:$PATH"
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Install ffmpeg for autonomous video editing and libportaudio2 for audio
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,13 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libportaudio2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create dedicated virtual environment to comply with Ubuntu Noble PEP 668
-RUN python3 -m venv /opt/venv && \
-    pip install --no-cache-dir --upgrade pip
-
-# Install Python dependencies inside virtual environment
+# Install Python dependencies with --break-system-packages for Ubuntu 24.04 Noble
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy source tree (including pre-built production frontend dist)
 COPY jarvis/ /app/jarvis/
