@@ -130,6 +130,9 @@ class DesktopController:
 
     def lock_workstation(self):
         """Lock Windows PC (Win+L)."""
+        if os.name != "nt":
+            logger.info("Lock workstation invoked in cloud container.")
+            return True
         import ctypes
         ctypes.windll.user32.LockWorkStation()
         security_guard.log_event("SYSTEM_LOCK", "Locked Windows Workstation", "SUCCESS")
@@ -137,6 +140,9 @@ class DesktopController:
 
     def control_volume(self, action: str = "mute") -> bool:
         """Adjust system volume (up, down, mute) safely using Windows keybd_event."""
+        if os.name != "nt":
+            logger.info(f"Volume control ({action}) invoked in cloud container.")
+            return True
         import ctypes
         VK_VOLUME_MUTE = 0xAD
         VK_VOLUME_DOWN = 0xAE

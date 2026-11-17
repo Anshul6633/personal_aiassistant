@@ -3,7 +3,7 @@ services:
     name: jarvis-ai-assistant
     runtime: docker
     dockerfilePath: Dockerfile
-    plan: standard
+    plan: free
     envVars:
       - key: PORT
         value: 8000
@@ -11,3 +11,4 @@ services:
         value: "true"
       - key: GROQ_API_KEY
         sync: false
+

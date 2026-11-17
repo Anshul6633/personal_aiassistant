@@ -1282,10 +1282,13 @@ async def open_in_explorer(req: OpenFileRequest):
             raise HTTPException(status_code=404, detail="Path does not exist")
 
     import subprocess
-    if target.is_dir():
-        subprocess.Popen(["explorer.exe", str(target)])
+    if os.name == "nt":
+        if target.is_dir():
+            subprocess.Popen(["explorer.exe", str(target)])
+        else:
+            subprocess.Popen(["explorer.exe", f"/select,{str(target)}"])
     else:
-        subprocess.Popen(["explorer.exe", f"/select,{str(target)}"])
+        logger.info(f"Open in explorer requested in cloud environment: {target}")
 
     return {"status": "OPENED", "path": str(target)}
 
