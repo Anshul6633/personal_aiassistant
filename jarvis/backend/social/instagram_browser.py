@@ -265,6 +265,8 @@ class InstagramBrowserUploader:
                 "args": [
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
                     "--start-maximized"
                 ],
                 "ignore_default_args": ["--enable-automation"]
