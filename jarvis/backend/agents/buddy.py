@@ -194,7 +194,30 @@ class JarvisBuddy:
         # Save user message to DB
         memory_manager.log_conversation(session_id, "user", user_prompt)
 
-        # 2. Select appropriate local model
+        # 2. Select appropriate local or cloud model
+        if settings.GROQ_API_KEY:
+            try:
+                state_manager.state.active_model = "llama-3.3-70b (Groq Cloud)"
+                groq_payload = {
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": messages,
+                    "temperature": 0.6,
+                    "max_tokens": 150
+                }
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    res = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
+                        json=groq_payload
+                    )
+                    if res.status_code == 200:
+                        response_text = res.json()["choices"][0]["message"]["content"].strip()
+                        memory_manager.log_conversation(session_id, "assistant", response_text)
+                        await state_manager.set_status(AssistantState.IDLE, "Standing by.")
+                        return response_text
+            except Exception as ge:
+                logger.warning(f"Groq cloud inference fallback: {ge}")
+
         available = await self.list_available_models()
         chosen_model = "qwen2.5:1.5b"
         for m in available:

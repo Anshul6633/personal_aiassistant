@@ -28,11 +28,14 @@ class Settings(BaseSettings):
     PORT: int = 8000
     HOST: str = "127.0.0.1"
 
-    # AI & Ollama Configuration (ZERO PAID API REQUIRED)
+    # AI & Cloud Fallback Configuration (Supports zero-cost Groq Cloud & local Ollama)
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     PRIMARY_MODEL: str = os.getenv("PRIMARY_MODEL", "qwen2.5:1.5b")
     FALLBACK_MODEL: str = os.getenv("FALLBACK_MODEL", "qwen2.5:1.5b")
     VISION_MODEL: str = os.getenv("VISION_MODEL", "qwen2.5-vl:3b")
+    GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY", None)
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", None)
+    HEADLESS: bool = os.getenv("HEADLESS", "false").lower() == "true"
 
     # Speech Recognition (faster-whisper)
     WHISPER_MODEL_SIZE: str = os.getenv("WHISPER_MODEL_SIZE", "tiny")

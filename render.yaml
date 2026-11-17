@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: jarvis-ai-assistant
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: standard
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: HEADLESS
+        value: "true"
+      - key: GROQ_API_KEY
+        sync: false
