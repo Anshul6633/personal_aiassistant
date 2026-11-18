@@ -587,7 +587,7 @@ class LivestreamClipperManager:
                     )
 
                     # 4. Schedule or Publish Short on YouTube Studio with Reach Pacing
-                    yt_target_dt = scheduler_engine.calculate_adaptive_schedule_time(platform="youtube", base_interval_minutes=15)
+                    yt_target_dt = scheduler_engine.calculate_adaptive_schedule_time(platform="youtube", base_interval_minutes=15, slot_index=clip_idx - 1)
                     # Format time without leading zero (e.g. '8:30 PM' instead of '08:30 PM') as required by YouTube Studio
                     sched_time_str = yt_target_dt.strftime("%I:%M %p").lstrip("0")
                     sched_date_str = yt_target_dt.strftime("%b %d, %Y")
@@ -659,7 +659,7 @@ class LivestreamClipperManager:
 
                         ig_status = await instagram_browser.check_login_status()
                         if ig_status.get("logged_in"):
-                            ig_target_dt = scheduler_engine.calculate_adaptive_schedule_time(platform="instagram", base_interval_minutes=15)
+                            ig_target_dt = scheduler_engine.calculate_adaptive_schedule_time(platform="instagram", base_interval_minutes=15, slot_index=clip_idx - 1)
                             mins_away_ig = max(1, int((ig_target_dt - datetime.now()).total_seconds() / 60))
                             ig_caption = anti_ban_guard.generate_varied_caption(
                                 base_title=clean_title,

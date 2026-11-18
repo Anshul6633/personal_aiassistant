@@ -695,7 +695,8 @@ class YouTubeSchedulerEngine:
     def calculate_adaptive_schedule_time(
         self,
         platform: str = "instagram",
-        base_interval_minutes: int = 15
+        base_interval_minutes: int = 15,
+        slot_index: int = 0
     ) -> datetime:
         """Dynamically compute the next publishing timestamp to maximize algorithmic reach and prevent shadowbans.
 
@@ -706,9 +707,6 @@ class YouTubeSchedulerEngine:
         - Clip #5-6: 30-minute interval (prevents feed cannibalization, unlocks FYP/Explore shelves)
         - Clip #7-8: 40-minute interval
         - Clip #9+:  45-60 minute interval (steady multi-day catalog cadence)
-
-        Audience Prime-Time Multiplier:
-        - If landing during dead night hours (01:00 - 06:30), defers to 07:30 AM morning surge.
         """
         table = "instagram_schedule_queue" if platform.lower() == "instagram" else "youtube_schedule_queue"
         conn = get_db_connection()
@@ -760,11 +758,12 @@ class YouTubeSchedulerEngine:
 
         target_dt = ref_dt + timedelta(minutes=interval)
 
-        # 24/7 Global International Coverage: Do not pause or skip overnight dead hours
-        # Allows international audiences (US, UK, Europe) to discover clips while local audience sleeps
+        # Offset successive clips within the same batch so they never share the same minute
+        if slot_index > 0:
+            target_dt += timedelta(minutes=slot_index * (15 if platform.lower() == "youtube" else 20))
 
-        # Ensure target is at least 10 minutes ahead of now
-        min_allowed = now + timedelta(minutes=10)
+        # Ensure target is at least ahead of now
+        min_allowed = now + timedelta(minutes=10 + (slot_index * 15))
         if target_dt < min_allowed:
             target_dt = min_allowed
 
@@ -774,8 +773,9 @@ class YouTubeSchedulerEngine:
             if remainder != 0:
                 target_dt += timedelta(minutes=(15 - remainder))
             target_dt = target_dt.replace(second=0, microsecond=0)
-            if target_dt < now + timedelta(minutes=15):
-                target_dt = now + timedelta(minutes=15)
+            min_yt = now + timedelta(minutes=15 + (slot_index * 15))
+            if target_dt < min_yt:
+                target_dt = min_yt
                 rem = target_dt.minute % 15
                 if rem != 0:
                     target_dt += timedelta(minutes=(15 - rem))

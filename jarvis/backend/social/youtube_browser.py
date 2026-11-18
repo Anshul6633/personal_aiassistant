@@ -492,19 +492,43 @@ class YouTubeBrowserUploader:
                     # Configure Schedule Date inside YouTube Studio if provided
                     if schedule_date:
                         try:
-                            dp_trigger = page.locator("#datepicker-trigger, #second-container ytcp-date-picker, ytcp-dropdown-trigger#datepicker-trigger").first
+                            dp_trigger = page.locator("#datepicker-trigger, ytcp-dropdown-trigger#datepicker-trigger, [aria-label*='date' i]").first
                             if await dp_trigger.is_visible():
-                                dp_input = dp_trigger.locator("input, [aria-label*='date' i]").first
-                                if await dp_input.is_visible():
-                                    await dp_input.click(force=True)
-                                    await asyncio.sleep(0.3)
-                                    await dp_input.press("Control+A")
-                                    await dp_input.type(schedule_date, delay=20)
-                                    await dp_input.press("Enter")
+                                curr_date_val = (await dp_trigger.inner_text()).strip()
+                                logger.info(f"YouTube Studio date trigger text: '{curr_date_val}' | Target date: '{schedule_date}'")
+                                # Click the trigger to open the calendar dialog
+                                await dp_trigger.click(force=True)
+                                await asyncio.sleep(0.8)
+
+                                # Look for the input field inside ytcp-date-picker / tp-yt-paper-dialog
+                                date_input = page.locator("ytcp-date-picker tp-yt-paper-input input, ytcp-date-picker input, tp-yt-paper-dialog input, #dialog.ytcp-date-picker input, [aria-label*='date' i]").first
+                                if await date_input.is_visible():
+                                    await date_input.click(force=True)
+                                    await asyncio.sleep(0.2)
+                                    await date_input.press("Control+A")
+                                    await date_input.type(schedule_date, delay=25)
+                                    await date_input.press("Enter")
                                     await asyncio.sleep(0.5)
-                                    logger.info(f"Set YouTube Studio schedule date to: {schedule_date}")
+                                    logger.info(f"Successfully configured YouTube Studio schedule date to: {schedule_date}")
+                                else:
+                                    logger.warning("Popup date input not found, falling back to calendar day cell match...")
+                                    import re
+                                    day_matches = re.findall(r"\b\d{1,2}\b", schedule_date)
+                                    if day_matches:
+                                        day_num = str(int(day_matches[0]))
+                                        day_el = page.locator(f"ytcp-date-picker .calendar-day:has-text('{day_num}'), ytcp-date-picker [role='gridcell']:has-text('{day_num}')").first
+                                        if await day_el.is_visible():
+                                            await day_el.click(force=True)
+                                            await asyncio.sleep(0.5)
+                                            logger.info(f"Clicked calendar day cell: {day_num}")
+
+                                # Safely blur/close calendar popup by clicking container title or background
+                                bg_el = page.locator("#second-container, ytcp-uploads-dialog #dialog-title").first
+                                if await bg_el.is_visible():
+                                    await bg_el.click(force=True)
+                                await asyncio.sleep(0.5)
                         except Exception as de:
-                            logger.warning(f"Could not type schedule date: {de}")
+                            logger.warning(f"Could not configure schedule date: {de}")
 
                     # Configure Schedule Time inside YouTube Studio if provided
                     if schedule_time:
