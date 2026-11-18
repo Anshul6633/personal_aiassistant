@@ -194,30 +194,32 @@ class JarvisBuddy:
         # Save user message to DB
         memory_manager.log_conversation(session_id, "user", user_prompt)
 
-        # 2. Priority 1: Groq Cloud (Free Llama 3.3 70B / 3.1 8B)
+        # 2. Priority 1: Groq Cloud (Ultra-Fast LPU Inference: Qwen 27B / Llama 70B)
         groq_key = settings.GROQ_API_KEY or memory_manager.get_memory("groq_api_key")
         if groq_key:
-            try:
-                state_manager.state.active_model = "llama-3.3-70b (Groq Cloud)"
-                groq_payload = {
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": messages,
-                    "temperature": 0.6,
-                    "max_tokens": 150
-                }
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    res = await client.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {groq_key}"},
-                        json=groq_payload
-                    )
-                    if res.status_code == 200:
-                        response_text = res.json()["choices"][0]["message"]["content"].strip()
-                        memory_manager.log_conversation(session_id, "assistant", response_text)
-                        await state_manager.set_status(AssistantState.IDLE, "Standing by.")
-                        return response_text
-            except Exception as ge:
-                logger.warning(f"Groq cloud inference fallback: {ge}")
+            groq_candidates = ["qwen/qwen3.8-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b"]
+            for g_model in groq_candidates:
+                try:
+                    groq_payload = {
+                        "model": g_model,
+                        "messages": messages,
+                        "temperature": 0.6,
+                        "max_tokens": 150
+                    }
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        res = await client.post(
+                            "https://api.groq.com/openai/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {groq_key}"},
+                            json=groq_payload
+                        )
+                        if res.status_code == 200:
+                            response_text = res.json()["choices"][0]["message"]["content"].strip()
+                            state_manager.state.active_model = f"{g_model} (Groq LPU)"
+                            memory_manager.log_conversation(session_id, "assistant", response_text)
+                            await state_manager.set_status(AssistantState.IDLE, "Standing by.")
+                            return response_text
+                except Exception as ge:
+                    logger.debug(f"Groq candidate {g_model} note: {ge}")
 
         # 2b. Priority 2: Google Gemini (Free Gemini 1.5 / 2.0 Flash)
         gemini_key = settings.GEMINI_API_KEY or memory_manager.get_memory("gemini_api_key")
