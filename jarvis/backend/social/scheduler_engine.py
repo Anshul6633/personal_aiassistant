@@ -692,6 +692,87 @@ class YouTubeSchedulerEngine:
             )
         }
 
+    def calculate_adaptive_schedule_time(
+        self,
+        platform: str = "instagram",
+        base_interval_minutes: int = 15
+    ) -> datetime:
+        """Dynamically compute the next publishing timestamp to maximize algorithmic reach and prevent shadowbans.
+
+        Reach-Adaptive Growth Pacing:
+        - Clip #1-2: 15-minute interval (immediate fresh content velocity)
+        - Clip #3: 20-minute interval (enables initial audience seed testing)
+        - Clip #4: 25-minute interval
+        - Clip #5-6: 30-minute interval (prevents feed cannibalization, unlocks FYP/Explore shelves)
+        - Clip #7-8: 40-minute interval
+        - Clip #9+:  45-60 minute interval (steady multi-day catalog cadence)
+
+        Audience Prime-Time Multiplier:
+        - If landing during dead night hours (01:00 - 06:30), defers to 07:30 AM morning surge.
+        """
+        table = "instagram_schedule_queue" if platform.lower() == "instagram" else "youtube_schedule_queue"
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(f"SELECT COUNT(*), MAX(scheduled_time) FROM {table} WHERE status = 'QUEUED'")
+        row = cur.fetchone()
+        queued_count = row[0] if row else 0
+        last_queued_time_str = row[1] if row and row[1] else None
+
+        cur.execute(f"SELECT MAX(published_at) FROM {table} WHERE status = 'PUBLISHED'")
+        last_pub_row = cur.fetchone()
+        last_pub_str = last_pub_row[0] if last_pub_row else None
+        conn.close()
+
+        now = datetime.now()
+
+        # Progressive reach interval based on queue depth
+        if queued_count <= 1:
+            interval = base_interval_minutes  # 15m
+        elif queued_count == 2:
+            interval = 20
+        elif queued_count == 3:
+            interval = 25
+        elif queued_count in (4, 5):
+            interval = 30
+        elif queued_count in (6, 7):
+            interval = 40
+        else:
+            interval = min(60, 45 + (queued_count - 8) * 5)
+
+        # Establish reference anchor timestamp
+        if last_queued_time_str:
+            try:
+                ref_dt = datetime.fromisoformat(last_queued_time_str)
+                if ref_dt < now:
+                    ref_dt = now
+            except Exception:
+                ref_dt = now
+        elif last_pub_str:
+            try:
+                ref_dt = datetime.fromisoformat(last_pub_str)
+                if ref_dt < now:
+                    ref_dt = now
+            except Exception:
+                ref_dt = now
+        else:
+            ref_dt = now
+
+        target_dt = ref_dt + timedelta(minutes=interval)
+
+        # Off-peak dead-zone guard (01:00 AM - 06:30 AM)
+        if 1 <= target_dt.hour < 7:
+            target_dt = target_dt.replace(hour=7, minute=30, second=0, microsecond=0)
+            if target_dt < now:
+                target_dt = now + timedelta(minutes=base_interval_minutes)
+
+        # Ensure target is at least 10 minutes ahead of now
+        min_allowed = now + timedelta(minutes=10)
+        if target_dt < min_allowed:
+            target_dt = min_allowed
+
+        return target_dt
+
     def schedule_instagram_reel(
         self,
         video_path: str,
