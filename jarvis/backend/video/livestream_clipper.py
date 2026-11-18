@@ -390,7 +390,7 @@ class LivestreamClipperManager:
         live_url: str,
         slice_duration: int = 180,
         num_clips: int = 2,
-        target_clip_duration: float = 45.0,
+        target_clip_duration: float = 24.0,
         style_preset: str = "gta6",
         custom_tags: Optional[List[str]] = None,
         credits_name: str = "CarryMinati",

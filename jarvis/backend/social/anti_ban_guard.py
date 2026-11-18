@@ -126,21 +126,21 @@ class AntiBanGuard:
     ) -> str:
         """Create high-converting, non-repetitive captions to avoid algorithmic spam classification."""
         hooks = [
-            f"You won't believe what happened next with @{credits_name}! 😱🔥",
-            f"Pure gaming chaos in GTA with {credits_name}! 🤯🎮",
-            f"Watch till the end for the craziest moment! ⚡💥",
-            f"Is this the funniest play ever? Drop your thoughts below! 👇😂",
-            f"Unreal clutch from @{credits_name}! Rate this 1-10! 🔥🚀"
+            f"Send this to your friend who drives like this in GTA 💀🚗",
+            f"Tag your duo who would choke this mission immediately 😂👇",
+            f"Bro really thought he had 200 IQ in GTA 6 😭 W or L move? 👇",
+            f"Watch till the end! {credits_name} completely lost it here 🤯🔥",
+            f"Send this to the group chat... this had me crying 😭💀",
+            f"Unreal clutch from @{credits_name}! Rate this from 1-10 below! 🔥🚀"
         ]
         selected_hook = random.choice(hooks)
 
+        # Instagram 2025/2026 strict cap: 3 to 5 hyper-targeted niche hashtags to prevent spam demotion
         hashtags_pool = [
-            "#gta6", "#carryminati", "#carrryminanti", "#gaming", "#reels",
-            "#explorepage", "#viral", "#gamingclips", "#gtav", "#carryislive",
-            "#trend", "#reelsinstagram", "#funnygaming", "#trendingreels"
+            "#gta6", "#gaming", "#gamingclips", "#carryminati", "#reels", "#gtav", "#viralreels", "#pcgaming"
         ]
         random.shuffle(hashtags_pool)
-        selected_tags = " ".join(hashtags_pool[:7])
+        selected_tags = " ".join(hashtags_pool[:5])
 
         if platform == "instagram":
             return (

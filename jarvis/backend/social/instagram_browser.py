@@ -300,11 +300,12 @@ class InstagramBrowserUploader:
             try:
                 import random
                 comment_hooks = [
-                    "Drop a W or L in the comments! 👇🔥",
-                    "Did he overreact or was he totally right? 😂👇",
-                    "Rate this play from 1 to 10 below! 🔥👀",
+                    "Send this to your friend who drives like this 💀🚗",
+                    "Tag your duo who would choke this mission immediately 😂👇",
+                    "Drop a W or L in the comments! Did he overreact or was he right? 👇🔥",
+                    "Rate this clutch from 1 to 10 below! 🔥👀",
+                    "Tag that one friend who needs to see this GTA 6 moment 😭🎮",
                     "What would you do in this situation? Let me know! 💀👇",
-                    "Tag someone who plays like this! 😭🎮",
                     "Is GTA 6 going to top this? Drop your thoughts! 🚀💥"
                 ]
                 first_comment = random.choice(comment_hooks)

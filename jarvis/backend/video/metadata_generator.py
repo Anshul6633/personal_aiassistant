@@ -156,10 +156,11 @@ def generate_viral_instagram_caption(
         lines.append(summary.strip())
         lines.append("")
 
-    # 3. Engagement trigger
+    # 3. High-Conversion Engagement & Share trigger
     lines.extend([
-        "👇 Drop your thoughts in the comments!",
-        "⚡ Follow @clipperwithout for more viral daily content!"
+        "🚀 Send this to a friend who always fails the mission! 💀",
+        "👇 Drop a W or L in the comments!",
+        "⚡ Follow @clipperwithout for daily viral gaming moments!"
     ])
     lines.append("")
 
@@ -170,28 +171,27 @@ def generate_viral_instagram_caption(
         lines.append("⚠️ For entertainment & educational purposes under fair use.")
         lines.append("")
 
-    # 5. Targeted Instagram Hashtags (15-20)
-    base_hashtags = [
-        "reels", "viralreels", "explorepage", "trending", "instareels",
-        "fyp", "foryou", "viral", "reelsinstagram", "contentcreator"
-    ]
+    # 5. Targeted Instagram Hashtags (Strict 3-5 limit for modern algorithm optimization)
+    base_hashtags = []
+    combined_text = f"{title} {summary} {source_title or ''}".lower()
+    if any(k in combined_text for k in ["football", "soccer", "goal", "ronaldo", "messi", "mbappe"]):
+        base_hashtags = ["football", "soccer", "cr7", "messi", "reels"]
+    elif any(k in combined_text for k in ["gta", "gaming", "carry", "vice", "stream", "heist", "clutch", "play", "gameplay"]):
+        base_hashtags = ["gta6", "gaming", "gamingclips", "carryminati", "reels"]
+    elif any(k in combined_text for k in ["mrbeast", "challenge", "win", "beast"]):
+        base_hashtags = ["mrbeast", "gaming", "challenge", "viral", "reels"]
+    elif any(k in combined_text for k in ["podcast", "rogan", "huberman", "mindset"]):
+        base_hashtags = ["podcast", "mindset", "motivation", "wisdom", "reels"]
+    else:
+        base_hashtags = ["gaming", "gta6", "gamingclips", "viral", "reels"]
+
     if tags:
         for t in tags:
             ct = t.strip().lstrip("#")
             if ct and ct.lower() not in [x.lower() for x in base_hashtags]:
-                base_hashtags.append(ct)
+                base_hashtags.insert(0, ct)
 
-    combined_text = f"{title} {summary} {source_title or ''}".lower()
-    if any(k in combined_text for k in ["football", "soccer", "goal", "ronaldo", "messi", "mbappe"]):
-        base_hashtags.extend(["football", "soccer", "cr7", "messi", "skills", "goals", "ucl"])
-    elif any(k in combined_text for k in ["gta", "gaming", "carry", "vice", "stream", "heist", "clutch", "play", "gameplay"]):
-        base_hashtags.extend(["gta6", "gtav", "gamingclips", "carryminati", "carryislive", "pcgaming", "funnygaming", "viralgaming", "gamingreels"])
-    elif any(k in combined_text for k in ["mrbeast", "challenge", "win", "beast"]):
-        base_hashtags.extend(["mrbeast", "challenge", "youtube", "gaming", "funnymoments"])
-    elif any(k in combined_text for k in ["podcast", "rogan", "huberman", "mindset"]):
-        base_hashtags.extend(["podcast", "mindset", "motivation", "wisdom", "success"])
-
-    tag_str = " ".join([f"#{t}" for t in base_hashtags[:18]])
+    tag_str = " ".join([f"#{t}" for t in base_hashtags[:5]])
     lines.append(tag_str)
 
     return "\n".join(lines)

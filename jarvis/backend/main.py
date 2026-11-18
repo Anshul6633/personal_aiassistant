@@ -710,7 +710,7 @@ class ContinuousLivestreamRequest(BaseModel):
     url: str
     slice_duration: Optional[int] = 180
     num_clips: Optional[int] = 2
-    target_clip_duration: Optional[float] = 45.0
+    target_clip_duration: Optional[float] = 24.0
     style_preset: Optional[str] = "gta6"
     tags: Optional[List[str]] = None
     credits_name: Optional[str] = "CarryMinati"
