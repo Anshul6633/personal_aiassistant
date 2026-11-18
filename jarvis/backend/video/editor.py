@@ -206,9 +206,10 @@ class VideoEditor:
         clip_end: float,
         output_ass_path: str,
         style: str = "podcast",
-        crop_mode: Optional[str] = None
+        crop_mode: Optional[str] = None,
+        hook_title: Optional[str] = None
     ) -> str:
-        """Generate styled Advanced SubStation Alpha (.ass) subtitles with keyword highlights and preset styling."""
+        """Generate styled Advanced SubStation Alpha (.ass) subtitles with keyword highlights, preset styling, and Top Hook Banner."""
         preset = STYLE_PRESETS.get(style.lower(), STYLE_PRESETS["gta6"]).copy()
 
         # Adapt subtitle vertical position dynamically based on layout structure
@@ -220,6 +221,11 @@ class VideoEditor:
         elif crop_mode in ("split_cam", "gaming", "streamer_face", "facecam"):
             margin_v = 540  # Centered over bottom gameplay section
 
+        hook_style_line = ""
+        if hook_title:
+            # Algorithmic Retention Multiplier: High-contrast Top Hook Header Banner
+            hook_style_line = f"Style: HookHeader,{preset['font']},46,&H00FFFFFF,&H0000FFFF,&H00180220,&HB0080110,-1,0,0,0,100,100,0,0,3,6,0,8,40,40,240,1\n"
+
         header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -229,7 +235,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{preset['font']},{preset['size']},{preset['primary']},{preset['secondary']},{preset['outline_col']},{preset['back_col']},{preset['bold']},0,0,0,100,100,0,0,1,{preset['outline']},{preset['shadow']},2,60,60,{margin_v},1
-
+{hook_style_line}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -274,6 +280,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # Hormozi/CapCut signature pop animation (114% scale on entrance popping to 100% in 75ms)
             phrase = "{\\fscx114\\fscy114\\t(0,75,\\fscx100\\fscy100)}" + " ".join(chunk_tokens)
             events.append(f"Dialogue: 0,{t_start},{t_end},Default,,0,0,0,,{phrase}")
+
+        if hook_title:
+            import re
+            clean_hook = re.sub(r"#(shorts|reels|gta6|gaming|viral)", "", hook_title, flags=re.IGNORECASE).strip()
+            clean_hook = clean_hook.split("?")[0] if "?" in clean_hook else clean_hook
+            if len(clean_hook) > 42:
+                clean_hook = clean_hook[:40].strip() + "..."
+            dur_cs = int((clip_end - clip_start) * 100)
+            h_s = int(dur_cs // 100)
+            h_cs = dur_cs % 100
+            h_end_str = f"{h_s // 3600}:{(h_s % 3600) // 60:02d}:{h_s % 60:02d}.{h_cs:02d}"
+            events.insert(0, f"Dialogue: 1,0:00:00.00,{h_end_str},HookHeader,,0,0,0,,{{\\fad(200,0)}}{clean_hook.upper()}")
 
         content = header + "\n".join(events)
         with open(output_ass_path, "w", encoding="utf-8") as f:
@@ -340,7 +358,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             filter_complex += f";[base]ass='{escaped_sub}'[outv]"
             final_video_label = "[outv]"
 
-        audio_filter = "loudnorm=I=-16:TP=-1.5:LRA=11"
+        # Mastering Audio: -14 LUFS (Optimal algorithm loudness for YouTube Shorts & Reels) + Vocal Clarity Boost
+        audio_filter = "highpass=f=75,equalizer=f=2800:width_type=o:width=1.5:g=2.5,loudnorm=I=-14:TP=-1.0:LRA=7"
         if trim_silence:
             audio_filter = "silenceremove=stop_periods=-1:stop_duration=1.2:stop_threshold=-35dB," + audio_filter
 

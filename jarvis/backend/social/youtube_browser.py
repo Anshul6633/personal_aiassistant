@@ -632,7 +632,7 @@ class YouTubeBrowserUploader:
 
                 # Strictly wait for YouTube's completion / share / processing confirmation dialog
                 logger.info("Waiting for YouTube to confirm video publication...")
-                conf_dialog = page.locator("ytcp-dialog:has-text('Video processing'), ytcp-dialog:has-text('Video published'), ytcp-video-share-dialog, [aria-label*='Video published' i]").first
+                conf_dialog = page.locator("ytcp-dialog:has-text('Video processing'), ytcp-dialog:has-text('Video published'), ytcp-dialog:has-text('Video scheduled'), ytcp-video-share-dialog, [aria-label*='Video published' i], [aria-label*='Video scheduled' i]").first
                 for _ in range(30):  # up to 60 seconds
                     if await conf_dialog.is_visible():
                         logger.info("YouTube confirmation dialog is visible! Video is published.")

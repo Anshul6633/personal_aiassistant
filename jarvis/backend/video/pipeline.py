@@ -241,7 +241,11 @@ class VideoPipeline:
                 else:
                     clip_style_preset = style_preset
 
-                # Generate ASS subtitles for this specific clip time window & layout structure
+                # Format high-CTR viral title & top hook banner
+                raw_title = enriched.get("title") or (cand["text"][:40] if cand.get("text") else f"Highlight {idx}")
+                viral_title = format_viral_shorts_title(raw_title)
+
+                # Generate ASS subtitles for this specific clip time window & layout structure with Top Hook Banner
                 ass_path = str(SUBS_DIR / f"{clip_label}.ass")
                 video_editor.generate_ass_subtitles(
                     transcript["words"],
@@ -249,7 +253,8 @@ class VideoPipeline:
                     clip_end=cand["end_time"],
                     output_ass_path=ass_path,
                     style=clip_style_preset,
-                    crop_mode=clip_crop_mode
+                    crop_mode=clip_crop_mode,
+                    hook_title=viral_title
                 )
 
                 # Render 9:16 vertical MP4 with Ultra-HD studio mastering
@@ -264,10 +269,6 @@ class VideoPipeline:
                     False,
                     clip_crop_mode
                 )
-    
-                # Format high-CTR viral title
-                raw_title = enriched.get("title") or (cand["text"][:40] if cand.get("text") else f"Highlight {idx}")
-                viral_title = format_viral_shorts_title(raw_title)
     
                 # Generate comprehensive, SEO-rich YouTube description with CTAs, quotes & source credits
                 proper_description = generate_proper_youtube_description(

@@ -296,6 +296,23 @@ class InstagramBrowserUploader:
             reel_url = f"https://www.instagram.com/reel/{media.code}/"
             logger.info(f"🎉 Instagram Reel successfully published! {reel_url}")
 
+            # Algorithmic Reach Multiplier: Immediately post a conversation-starter comment to ignite early engagement
+            try:
+                import random
+                comment_hooks = [
+                    "Drop a W or L in the comments! 👇🔥",
+                    "Did he overreact or was he totally right? 😂👇",
+                    "Rate this play from 1 to 10 below! 🔥👀",
+                    "What would you do in this situation? Let me know! 💀👇",
+                    "Tag someone who plays like this! 😭🎮",
+                    "Is GTA 6 going to top this? Drop your thoughts! 🚀💥"
+                ]
+                first_comment = random.choice(comment_hooks)
+                cl.media_comment(media.id, first_comment)
+                logger.info(f"💬 [Reach Multiplier] Automated first comment posted: '{first_comment}'")
+            except Exception as ce:
+                logger.warning(f"Could not post reach multiplier comment: {ce}")
+
             # Update Anti-Ban Guard
             try:
                 from jarvis.backend.social.anti_ban_guard import anti_ban_guard

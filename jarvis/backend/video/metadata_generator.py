@@ -48,12 +48,28 @@ def generate_proper_youtube_description(
             ""
         ])
 
+    # Detect niche/topic
+    combined_text = f"{title} {summary} {source_title or ''}".lower()
+    is_football = any(k in combined_text for k in ["football", "soccer", "goal", "ronaldo", "messi", "mbappe", "bellingham", "yamal", "haaland"])
+
+    if is_football:
+        cta_question = "💬 Comment below: Who is the greatest player in football history?"
+        channel_display = channel_name
+        base_tags = ["Shorts", "YouTubeShorts", "Football", "Soccer", "Viral", "Trending"]
+        bottom_tags = "#shorts #viral #trending #football #soccer #fyp #foryou #sports"
+    else:
+        # Gaming / GTA 6 / Streamer high-growth niche
+        cta_question = "💬 Comment below: What would you do in this situation? Drop a W or L! 👇"
+        channel_display = "Viral Gaming Hub" if "football" in channel_name.lower() else channel_name
+        base_tags = ["Shorts", "YouTubeShorts", "GTA6", "GTA", "Gaming", "GamingShorts", "ViralGaming", "CarryMinati", "Trending", "Clutch"]
+        bottom_tags = "#shorts #gta6 #gaming #gamingshorts #viral #trending #fyp #foryou #carryminati"
+
     # Engagement CTAs
     desc_lines.extend([
         "🔥 ENJOYED THIS EDIT? SUPPORT THE CHANNEL:",
-        f"🔔 SUBSCRIBE to @{channel_name.replace(' ', '')} for daily high-energy edits & viral moments!",
-        "👍 Hit LIKE if this gave you chills!",
-        "💬 Comment below: Who is the greatest player in football history?",
+        f"🔔 SUBSCRIBE to @{channel_display.replace(' ', '')} for daily high-energy viral gaming moments!",
+        "👍 Hit LIKE if this was an absolute clutch!",
+        cta_question,
         ""
     ])
 
@@ -68,33 +84,11 @@ def generate_proper_youtube_description(
             desc_lines.append(f"• Original Link: {source_url}")
         desc_lines.append("")
 
-    # SEO tags & viral hashtags
-    base_tags = ["Shorts", "YouTubeShorts", "Football", "Soccer", "Viral", "Trending", "GHOST_OF_FOOTBALL"]
     if tags:
         for t in tags:
             clean_t = re.sub(r"[#,\s]", "", t).strip()
             if clean_t and clean_t not in base_tags:
                 base_tags.append(clean_t)
-
-    # Detect entity keywords from title and summary to boost relevant hashtags
-    combined_text = f"{title} {summary} {source_title or ''}".lower()
-    entities = [
-        ("mbappe", ["Mbappe", "KylianMbappe", "RealMadrid", "France"]),
-        ("haaland", ["Haaland", "ErlingHaaland", "ManCity"]),
-        ("ronaldo", ["Ronaldo", "CR7", "AlNassr"]),
-        ("messi", ["Messi", "InterMiami", "Argentina"]),
-        ("yamal", ["LamineYamal", "Barcelona"]),
-        ("vinicius", ["ViniJr", "RealMadrid", "Brazil"]),
-        ("bellingham", ["Bellingham", "RealMadrid", "England"]),
-        ("neymar", ["Neymar", "Santos", "Brazil"]),
-        ("champions league", ["UCL", "ChampionsLeague"]),
-        ("world cup", ["WorldCup", "FIFAWorldCup"])
-    ]
-    for key, related in entities:
-        if key in combined_text:
-            for r in related:
-                if r not in base_tags:
-                    base_tags.append(r)
 
     # Format hashtags (up to 12 hashtags)
     hashtags_str = " ".join([f"#{t}" for t in base_tags[:12]])
@@ -103,20 +97,31 @@ def generate_proper_youtube_description(
         hashtags_str,
         "",
         "---",
-        "#shorts #viral #trending #football #soccer #fyp #foryou #sports"
+        bottom_tags
     ])
 
     return "\n".join(desc_lines)
 
 
 def format_viral_shorts_title(raw_title: str) -> str:
-    """Format title to strictly adhere to YouTube Shorts viral CTR standards (<100 chars, emojis, #Shorts)."""
-    clean = re.sub(r"#shorts", "", raw_title, flags=re.IGNORECASE).strip()
+    """Format title to strictly adhere to YouTube Shorts viral CTR standards (<100 chars, emojis, #Shorts).
+    
+    Dynamically applies high-CTR emotional trigger emojis based on the topic.
+    """
+    clean = re.sub(r"#(shorts|reels|gta6|gaming|viral)", "", raw_title, flags=re.IGNORECASE).strip()
     clean = re.sub(r"\.(mp4|mov|avi|mkv)$", "", clean, flags=re.IGNORECASE).strip()
     clean = clean.replace("_", " ")
 
-    football_emojis = ["⚽🔥", "⚽⚡", "👑⚽", "🥶⚽", "🤯⚽", "🏆⚡"]
-    emoji = random.choice(football_emojis)
+    lower = clean.lower()
+    if any(k in lower for k in ["football", "soccer", "ronaldo", "messi", "goal", "mbappe"]):
+        emojis = ["⚽🔥", "⚽⚡", "👑⚽", "🥶⚽", "🤯⚽", "🏆⚡"]
+    elif any(k in lower for k in ["money", "rich", "million", "billion", "car", "supercar"]):
+        emojis = ["💸🔥", "💰🤯", "🤑⚡", "🔥💸", "💎🚀"]
+    else:
+        # Gaming / Action / GTA 6 / Streamer Climax
+        emojis = ["💀🔥", "🤯💥", "😱🔥", "🎮⚡", "😭💀", "🚨💥", "🔥🎮", "🥶💀", "👀🔥", "🚀💥"]
+
+    emoji = random.choice(emojis)
 
     formatted = f"{clean.title()} {emoji} #Shorts"
     if len(formatted) > 95:
@@ -179,6 +184,8 @@ def generate_viral_instagram_caption(
     combined_text = f"{title} {summary} {source_title or ''}".lower()
     if any(k in combined_text for k in ["football", "soccer", "goal", "ronaldo", "messi", "mbappe"]):
         base_hashtags.extend(["football", "soccer", "cr7", "messi", "skills", "goals", "ucl"])
+    elif any(k in combined_text for k in ["gta", "gaming", "carry", "vice", "stream", "heist", "clutch", "play", "gameplay"]):
+        base_hashtags.extend(["gta6", "gtav", "gamingclips", "carryminati", "carryislive", "pcgaming", "funnygaming", "viralgaming", "gamingreels"])
     elif any(k in combined_text for k in ["mrbeast", "challenge", "win", "beast"]):
         base_hashtags.extend(["mrbeast", "challenge", "youtube", "gaming", "funnymoments"])
     elif any(k in combined_text for k in ["podcast", "rogan", "huberman", "mindset"]):
