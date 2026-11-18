@@ -27,7 +27,12 @@ SUBS_DIR = OUTPUT_DIR / "subtitles"
 EMPHASIS_KEYWORDS = {
     "secret", "mistake", "never", "always", "truth", "why", "stop", "ai",
     "money", "billion", "million", "crazy", "huge", "biggest", "rule",
-    "future", "power", "warning", "free", "danger", "lesson", "win", "lose"
+    "future", "power", "warning", "free", "danger", "lesson", "win", "lose",
+    # Gaming & Hindi Viral Triggers
+    "gta", "gta6", "carry", "carryminati", "bhai", "yaar", "kya", "dekho",
+    "kill", "police", "gun", "car", "headshot", "noob", "pro", "hack",
+    "insane", "omg", "lol", "op", "epic", "bhaiya", "legend", "ps5", "game",
+    "crore", "lakh", "loot", "dead", "fight", "escape", "run"
 }
 
 # The Visual Subtitle Presets (Format: Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, MarginV)
@@ -87,18 +92,18 @@ STYLE_PRESETS = {
         "name": "Arcade Flame",
         "tag": "Gaming",
         "font": "Impact",
-        "size": 74,
-        "primary": "&H0000A5FF",  # Fiery Orange
-        "secondary": "&H000000FF",
-        "outline_col": "&H00000000", # Jet Black
+        "size": 82,
+        "primary": "&H00FFFFFF",  # Crisp Brilliant White for 100% legibility
+        "secondary": "&H0000FFFF",
+        "outline_col": "&H00000000", # Heavy Jet Black Outline
         "back_col": "&H00000000",
         "bold": -1,
-        "outline": 7,
-        "shadow": 3,
-        "margin_v": 540,
-        "highlight_col": "&H0000FFFF",  # Bright Yellow
+        "outline": 8,
+        "shadow": 4,
+        "margin_v": 560,
+        "highlight_col": "&H0000FFFF",  # Blazing Electric Yellow
         "sample": "SMASH IT OR LOSE IT",
-        "desc": "High-intensity orange & red street aesthetic with burning golden keyword highlights."
+        "desc": "High-intensity oversized Impact font in brilliant white with burning yellow keyword pops and 8px stroke."
     },
     "motivational": {
         "name": "Regal Gold",
@@ -215,7 +220,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             return output_ass_path
 
         events = []
-        chunk_size = 4
+        chunk_size = 2  # Modern punchy 2-word cadence for max short-form retention
         highlight_color = preset.get("highlight_col", "&H0000FFFF")
 
         for i in range(0, len(clip_words), chunk_size):
@@ -223,18 +228,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             t_start = format_ass_time(chunk[0]["start"])
             t_end = format_ass_time(chunk[-1]["end"])
 
-            # Format words with keyword color override tags
+            # Format words with keyword color override tags & energetic bounce animation
             chunk_tokens = []
             for w in chunk:
                 raw_w = w["word"].strip()
                 clean_w = raw_w.lower().strip(".,!?:;\"'()[]")
                 if clean_w in EMPHASIS_KEYWORDS:
-                    # Apply keyword highlight
-                    chunk_tokens.append(f"{{\\c{highlight_color}&}}{raw_w.upper()}{{\\c{preset['primary']}&}}")
+                    # Apply luminous keyword highlight with bold emphasis
+                    chunk_tokens.append(f"{{\\c{highlight_color}&\\b1}}{raw_w.upper()}{{\\c{preset['primary']}&\\b{preset.get('bold', -1)}}}")
                 else:
                     chunk_tokens.append(raw_w.upper())
 
-            phrase = " ".join(chunk_tokens)
+            # Hormozi/CapCut signature pop animation (114% scale on entrance popping to 100% in 75ms)
+            phrase = "{\\fscx114\\fscy114\\t(0,75,\\fscx100\\fscy100)}" + " ".join(chunk_tokens)
             events.append(f"Dialogue: 0,{t_start},{t_end},Default,,0,0,0,,{phrase}")
 
         content = header + "\n".join(events)

@@ -709,7 +709,7 @@ async def discover_livestreams(topic: Optional[str] = "live stream", limit: int 
 class ContinuousLivestreamRequest(BaseModel):
     url: str
     slice_duration: Optional[int] = 180
-    num_clips: Optional[int] = 1
+    num_clips: Optional[int] = 2
     target_clip_duration: Optional[float] = 45.0
     style_preset: Optional[str] = "flame"
     tags: Optional[List[str]] = None

@@ -370,9 +370,11 @@ class LivestreamClipperManager:
 
         default_tags = ["gta6", "carrryminanti", "carryminati", "CarryisLive", "GTA 6", "Gaming", "Shorts", "Viral", "Trending"]
         tags_to_use = custom_tags or default_tags
+        # Ensure 180s capture produces 2 high-impact viral clips per slice
+        clips_to_generate = max(num_clips, 2) if slice_duration >= 120 else max(1, num_clips)
 
         self._log(f"🔥 Starting continuous live stream clipping loop on {live_url}...")
-        self._log(f"Tags: {tags_to_use}")
+        self._log(f"Targeting {clips_to_generate} clips per {slice_duration}s slice | Tags: {tags_to_use}")
 
         try:
             while self.continuous_running:
@@ -401,13 +403,13 @@ class LivestreamClipperManager:
                     await asyncio.sleep(15)
                     continue
 
-                # 2. Transcribe & extract high-hook candidate windows
-                self.current_state["step"] = f"Cycle #{cycle}: Transcribing & detecting viral hooks"
-                await state_manager.set_status(AssistantState.EXECUTING, f"Cycle #{cycle}: Transcribing audio & scoring hooks...")
+                # 2. Transcribe & extract high-hook candidate windows (2 clips per 180s slice)
+                self.current_state["step"] = f"Cycle #{cycle}: Transcribing & detecting {clips_to_generate} viral hooks"
+                await state_manager.set_status(AssistantState.EXECUTING, f"Cycle #{cycle}: Transcribing audio & scoring {clips_to_generate} hooks...")
                 try:
                     clips = await video_pipeline.process_video(
                         video_path=slice_path,
-                        num_clips=num_clips,
+                        num_clips=clips_to_generate,
                         target_duration=target_clip_duration,
                         style_preset=style_preset,
                         auto_publish_youtube=False
@@ -421,31 +423,33 @@ class LivestreamClipperManager:
                     await asyncio.sleep(sleep_between_cycles)
                     continue
 
-                # 3. Format metadata with CarryMinati credits and #gta6 #carrryminanti tags
-                for clip in clips:
+                # 3. Format enhanced captions, credits and upload both clips
+                for clip_idx, clip in enumerate(clips, 1):
                     short_path = clip.get("output_path") or clip.get("video_path")
-                    raw_title = clip.get("title") or "CarryMinati Insane GTA 6 Moment"
-                    # Format punchy YouTube Shorts title
-                    if "#gta6" not in raw_title.lower():
-                        clean_title = raw_title.replace("#Shorts", "").replace("#shorts", "").strip()
+                    raw_title = clip.get("title") or f"CarryMinati Insane GTA 6 Moment #{clip_idx}"
+                    clean_title = raw_title.replace("#Shorts", "").replace("#shorts", "").strip()
+                    if clip_idx == 1:
                         final_title = f"{clean_title[:45]} 🤯 #GTA6 #Shorts"
                     else:
-                        final_title = raw_title
+                        final_title = f"{clean_title[:45]} 🔥 #CarryMinati #Shorts"
                     if len(final_title) > 90:
                         final_title = final_title[:80] + "... #Shorts"
 
+                    # Rich, engaging YouTube description with clear hook, credits & viral tags
                     short_desc = (
-                        f"{clip.get('caption', '')}\n\n"
+                        f"⚡ {clip.get('caption', '')}\n\n"
+                        f"Can CarryMinati survive this insane moment in GTA 6? Watch till the end! 😱🔥\n\n"
                         f"🎮 Stream: {stream_title}\n"
                         f"👑 Credits to {credits_name}: {broadcaster} ({channel_handle})\n"
                         f"🔗 Original Stream: {live_url}\n\n"
-                        f"#gta6 #carrryminanti #carryminati #gaming #shorts #viral #carryislive #gtavi"
+                        f"Subscribe for more epic gaming shorts & viral moments!\n\n"
+                        f"#gta6 #carrryminanti #carryminati #gaming #shorts #viral #carryislive #gtavi #trending"
                     )
 
-                    # 4. Upload immediately to YouTube Studio via Playwright
-                    self._log(f"🚀 [CYCLE #{cycle}] Uploading Short to YouTube Studio: '{final_title}'...")
-                    self.current_state["step"] = f"Cycle #{cycle}: Uploading Short to YouTube Studio via Playwright"
-                    await state_manager.set_status(AssistantState.EXECUTING, f"Publishing '{final_title[:30]}...' to YouTube Studio...")
+                    # 4. Upload to YouTube Studio via Playwright
+                    self._log(f"🚀 [CYCLE #{cycle} - CLIP {clip_idx}/{len(clips)}] Uploading Short to YouTube Studio: '{final_title}'...")
+                    self.current_state["step"] = f"Cycle #{cycle} [Clip {clip_idx}/{len(clips)}]: Uploading Short to YouTube Studio"
+                    await state_manager.set_status(AssistantState.EXECUTING, f"Publishing clip {clip_idx}/{len(clips)} to YouTube Studio...")
 
                     scheduler_engine.pause_queue()
                     try:
@@ -457,9 +461,10 @@ class LivestreamClipperManager:
                             privacy="public"
                         )
                         published_url = upload_res.get("video_url") or "PUBLISHED_STUDIO"
-                        self._log(f"✅ [CYCLE #{cycle}] Published to YouTube Studio successfully! URL: {published_url}")
+                        self._log(f"✅ [CYCLE #{cycle} - CLIP {clip_idx}/{len(clips)}] Published to YouTube Studio successfully! URL: {published_url}")
                         self.current_state["clips_uploaded"].append({
                             "cycle": cycle,
+                            "clip_num": clip_idx,
                             "title": final_title,
                             "video_path": short_path,
                             "url": published_url,
@@ -480,9 +485,13 @@ class LivestreamClipperManager:
                             logger.warning(f"Could not record published status in DB: {de}")
 
                     except Exception as ue:
-                        self._log(f"⚠️ YouTube Studio upload warning in cycle #{cycle}: {ue}")
+                        self._log(f"⚠️ YouTube Studio upload warning in cycle #{cycle} clip {clip_idx}: {ue}")
                     finally:
                         scheduler_engine.resume_queue()
+
+                    # Brief pause between sequential uploads from the same slice
+                    if clip_idx < len(clips):
+                        await asyncio.sleep(8)
 
                 self._log(f"Sleeping {sleep_between_cycles}s before capturing next live slice...")
                 await asyncio.sleep(sleep_between_cycles)
