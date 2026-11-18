@@ -12,6 +12,7 @@ import sqlite3
 import shutil
 import tempfile
 import json
+import threading
 import subprocess
 import logging
 from pathlib import Path
@@ -25,11 +26,16 @@ logger = logging.getLogger("JARVIS.InstagramBrowser")
 
 BROWSER_PROFILE_DIR = WORKSPACE_ROOT / "jarvis" / "browser_profile"
 BROWSER_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+INSTAGRAM_PROFILE_DIR = WORKSPACE_ROOT / "jarvis" / "browser_profile_instagram"
+INSTAGRAM_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class InstagramBrowserUploader:
+    _instagram_lock = threading.Lock()
+
     def __init__(self):
-        self.profile_dir = str(BROWSER_PROFILE_DIR)
+        # Dedicated browser profile isolated from YouTube to prevent lock conflicts
+        self.profile_dir = str(INSTAGRAM_PROFILE_DIR)
 
     async def check_login_status(self) -> Dict[str, Any]:
         """Fast, non-blocking check if the user is authenticated on Instagram.
@@ -37,12 +43,18 @@ class InstagramBrowserUploader:
         Inspects the persistent SQLite cookie jar directly in under 10ms
         without launching a browser process or locking files.
         """
-        profile_path = Path(self.profile_dir)
-        cookies_db = profile_path / "Default" / "Network" / "Cookies"
-        if not cookies_db.exists():
-            cookies_db = profile_path / "Default" / "Cookies"
+        # Check primary instagram profile, fallback to shared browser_profile if synced
+        profile_candidates = [Path(self.profile_dir), BROWSER_PROFILE_DIR]
+        found_db = None
+        for p in profile_candidates:
+            cdb = p / "Default" / "Network" / "Cookies"
+            if not cdb.exists():
+                cdb = p / "Default" / "Cookies"
+            if cdb.exists():
+                found_db = cdb
+                break
 
-        if not cookies_db.exists():
+        if not found_db or not found_db.exists():
             return {
                 "logged_in": False,
                 "username": None,
@@ -56,7 +68,7 @@ class InstagramBrowserUploader:
         user_id = None
 
         try:
-            shutil.copy2(cookies_db, tmp_db)
+            shutil.copy2(found_db, tmp_db)
             conn = sqlite3.connect(tmp_db)
             cur = conn.cursor()
             cur.execute("SELECT name, value FROM cookies WHERE host_key LIKE '%instagram.com%'")
@@ -67,6 +79,15 @@ class InstagramBrowserUploader:
             has_session = bool(rows.get("sessionid"))
             user_id = rows.get("ds_user_id")
             logged_in = has_session and bool(user_id)
+
+            # If logged in on secondary profile, copy to primary instagram profile
+            if logged_in and found_db.parent.parent != Path(self.profile_dir):
+                try:
+                    dest_cookie_dir = Path(self.profile_dir) / "Default" / "Network"
+                    dest_cookie_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(found_db, dest_cookie_dir / "Cookies")
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug(f"Instagram cookie check error: {e}")
         finally:
@@ -76,12 +97,14 @@ class InstagramBrowserUploader:
                 pass
 
         # Try to extract username or last logged-in account from Chrome Preferences
+        profile_path = Path(self.profile_dir)
         pref_file = profile_path / "Default" / "Preferences"
+        if not pref_file.exists():
+            pref_file = BROWSER_PROFILE_DIR / "Default" / "Preferences"
         if pref_file.exists():
             try:
                 with open(pref_file, "r", encoding="utf-8", errors="ignore") as f:
                     pref = json.load(f)
-                    # Check autofill or signin data
                     autofill = pref.get("autofill", {}).get("profile_names", [])
                     if autofill and isinstance(autofill, list):
                         username = autofill[0]
@@ -96,7 +119,7 @@ class InstagramBrowserUploader:
             "username": username,
             "user_id": user_id,
             "profile_dir": self.profile_dir,
-            "method": "Browser Session (Zero-API Quota)"
+            "method": "Browser Session (Zero-API Quota, Anti-Ban Protected)"
         }
 
     def open_login_window(self) -> Dict[str, Any]:
@@ -176,16 +199,17 @@ class InstagramBrowserUploader:
                 pass
 
     def _run_in_proactor_loop(self, coro_fn, *args, **kwargs):
-        if sys.platform == "win32":
-            policy = asyncio.WindowsProactorEventLoopPolicy()
-            loop = policy.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(coro_fn(*args, **kwargs))
-            finally:
-                loop.close()
-        else:
-            return asyncio.run(coro_fn(*args, **kwargs))
+        with self._instagram_lock:
+            if sys.platform == "win32":
+                policy = asyncio.WindowsProactorEventLoopPolicy()
+                loop = policy.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(coro_fn(*args, **kwargs))
+                finally:
+                    loop.close()
+            else:
+                return asyncio.run(coro_fn(*args, **kwargs))
 
     async def upload_reel(
         self,
@@ -443,6 +467,11 @@ class InstagramBrowserUploader:
 
                 if success:
                     logger.info("🎉 SUCCESS! Reel has been published to Instagram!")
+                    try:
+                        from jarvis.backend.social.anti_ban_guard import anti_ban_guard
+                        anti_ban_guard.record_instagram_post(True)
+                    except Exception:
+                        pass
                     # Update database audit logs
                     conn = get_db_connection()
                     cur = conn.cursor()
@@ -467,6 +496,13 @@ class InstagramBrowserUploader:
 
             except Exception as e:
                 logger.error(f"Instagram automation error: {e}", exc_info=True)
+                err_str = str(e).lower()
+                if "try again later" in err_str or "action blocked" in err_str or "we limit how often" in err_str:
+                    try:
+                        from jarvis.backend.social.anti_ban_guard import anti_ban_guard
+                        anti_ban_guard.record_action_block(cooldown_hours=2.0)
+                    except Exception:
+                        pass
                 # Try saving error screenshot
                 err_shot = WORKSPACE_ROOT / "jarvis" / "output" / "exports" / "instagram_error.png"
                 try:

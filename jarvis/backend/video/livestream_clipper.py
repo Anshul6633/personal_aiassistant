@@ -491,6 +491,61 @@ class LivestreamClipperManager:
                     finally:
                         scheduler_engine.resume_queue()
 
+                    # 5. Dual-Publish to Instagram Reels with Anti-Ban Protection
+                    try:
+                        from jarvis.backend.social.instagram_browser import instagram_browser
+                        from jarvis.backend.social.anti_ban_guard import anti_ban_guard
+
+                        ig_status = await instagram_browser.check_login_status()
+                        if ig_status.get("logged_in"):
+                            can_post_ig, ig_reason, wait_sec = anti_ban_guard.can_post_instagram()
+                            ig_caption = anti_ban_guard.generate_varied_caption(
+                                base_title=clean_title,
+                                broadcaster=broadcaster,
+                                credits_name=credits_name,
+                                stream_url=live_url,
+                                platform="instagram"
+                            )
+
+                            if can_post_ig:
+                                self._log(f"📸 [CYCLE #{cycle} - CLIP {clip_idx}/{len(clips)}] Uploading Reel to Instagram: '{clean_title[:35]}...'")
+                                ig_res = await instagram_browser.upload_reel(
+                                    video_path=short_path,
+                                    caption=ig_caption,
+                                    tags=tags_to_use,
+                                    share_to_feed=True,
+                                    headless=False
+                                )
+                                if ig_res.get("success"):
+                                    self._log(f"✅ [Instagram] Reel published successfully to @{ig_status.get('username')}!")
+                                    try:
+                                        conn = get_db_connection()
+                                        cur = conn.cursor()
+                                        cur.execute("UPDATE clips SET published_instagram = 1 WHERE output_path = ?", (short_path,))
+                                        conn.commit()
+                                        conn.close()
+                                    except Exception:
+                                        pass
+                                else:
+                                    self._log(f"⚠️ [Instagram] Reel upload notice: {ig_res.get('error', 'Skipped')}")
+                            else:
+                                # Anti-ban guard active: Schedule in Instagram queue so account is never banned
+                                self._log(f"🛡️ [Anti-Ban Guard] Instagram pacing active ({ig_reason}). Scheduling Reel for later.")
+                                schedule_delay = wait_sec if wait_sec and wait_sec > 60 else 900
+                                sched_time = (datetime.now() + timedelta(seconds=schedule_delay)).isoformat()
+                                scheduler_engine.schedule_instagram_reel(
+                                    video_path=short_path,
+                                    caption=ig_caption,
+                                    scheduled_time=sched_time,
+                                    tags=tags_to_use
+                                )
+                                self._log(f"📅 [Instagram] Reel queued safely for {sched_time[:19]}")
+                        else:
+                            self._log("ℹ️ [Instagram] Session pending sign-in. Click 'Open Instagram Sign-In' once in Instagram tab to auto-publish Reels.")
+                    except Exception as ige:
+                        # CRITICAL: Instagram issues NEVER disrupt YouTube uploads!
+                        self._log(f"⚠️ [Instagram] Non-blocking notice: {ige}")
+
                     # Brief pause between sequential uploads from the same slice
                     if clip_idx < len(clips):
                         await asyncio.sleep(8)
