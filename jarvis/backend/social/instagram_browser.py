@@ -28,6 +28,7 @@ BROWSER_PROFILE_DIR = WORKSPACE_ROOT / "jarvis" / "browser_profile"
 BROWSER_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 INSTAGRAM_PROFILE_DIR = WORKSPACE_ROOT / "jarvis" / "browser_profile_instagram"
 INSTAGRAM_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+INSTAGRAM_SESSION_PATH = WORKSPACE_ROOT / "jarvis" / "instagram_session.json"
 
 
 class InstagramBrowserUploader:
@@ -38,12 +39,31 @@ class InstagramBrowserUploader:
         self.profile_dir = str(INSTAGRAM_PROFILE_DIR)
 
     async def check_login_status(self) -> Dict[str, Any]:
-        """Fast, non-blocking check if the user is authenticated on Instagram.
+        """Fast check if the user is authenticated on Instagram.
 
-        Inspects the persistent SQLite cookie jar directly in under 10ms
-        without launching a browser process or locking files.
+        1. Inspects the Mobile Private API session settings directly.
+        2. Falls back to inspecting the persistent SQLite cookie jar.
         """
-        # Check primary instagram profile, fallback to shared browser_profile if synced
+        # 1. Check Mobile Private API active session
+        if INSTAGRAM_SESSION_PATH.exists():
+            try:
+                with open(INSTAGRAM_SESSION_PATH, "r", encoding="utf-8") as f:
+                    sess_data = json.load(f)
+                auth_data = sess_data.get("authorization_data", {})
+                user_id = auth_data.get("ds_user_id")
+                if user_id:
+                    return {
+                        "logged_in": True,
+                        "username": "clipperwithout",
+                        "user_id": str(user_id),
+                        "profile_dir": self.profile_dir,
+                        "method": "Mobile Private API (Connected & Active)",
+                        "message": "Authenticated as @clipperwithout (Native Reels API Ready)"
+                    }
+            except Exception as e:
+                logger.debug(f"Instagram session JSON check error: {e}")
+
+        # 2. Check primary instagram profile, fallback to shared browser_profile if synced
         profile_candidates = [Path(self.profile_dir), BROWSER_PROFILE_DIR]
         found_db = None
         for p in profile_candidates:
@@ -197,18 +217,116 @@ class InstagramBrowserUploader:
         caption: str,
         tags: Optional[List[str]] = None,
         share_to_feed: bool = True,
-        headless: bool = False
+        headless: bool = False,
+        cover_path: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Automate full upload workflow for an Instagram Reel in a dedicated Proactor loop thread."""
+        """Upload an Instagram Reel prioritizing high-speed Native Mobile API, with Playwright browser fallback."""
+        video_file = Path(video_path).resolve()
+        if not video_file.exists():
+            raise FileNotFoundError(f"Video file not found at: {video_path}")
+
+        # 1. Primary Engine: Native Mobile Private API (instagrapi)
+        if INSTAGRAM_SESSION_PATH.exists():
+            try:
+                res = await self._upload_via_mobile_api(video_file, caption, tags, cover_path)
+                if res.get("success"):
+                    return res
+            except Exception as e:
+                logger.warning(f"Native Mobile API Reel upload failed ({e}); falling back to browser automation...")
+
+        # 2. Fallback Engine: Dedicated Playwright browser session
         return await asyncio.to_thread(
             self._run_in_proactor_loop,
             self._upload_reel_impl,
-            video_path,
+            str(video_file),
             caption,
             tags,
             share_to_feed,
             headless
         )
+
+    async def _upload_via_mobile_api(
+        self,
+        video_file: Path,
+        caption: str,
+        tags: Optional[List[str]] = None,
+        cover_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Upload Reel using instagrapi Mobile Private API with zero browser lock contention."""
+        def _sync_worker():
+            from instagrapi import Client
+            cl = Client()
+            cl.delay_range = [1, 2]
+            cl.load_settings(str(INSTAGRAM_SESSION_PATH))
+
+            # Assemble caption & clean hashtags
+            full_caption = caption.strip()
+            clean_tags = []
+            if tags:
+                for t in tags:
+                    ct = t.strip().lstrip("#")
+                    if ct:
+                        clean_tags.append(f"#{ct}")
+            if clean_tags:
+                full_caption += "\n.\n.\n" + " ".join(clean_tags)
+
+            # Determine thumbnail
+            thumb = None
+            if cover_path and Path(cover_path).exists():
+                thumb = Path(cover_path)
+            else:
+                v_stem = video_file.stem
+                cand_thumb = WORKSPACE_ROOT / "jarvis" / "output" / "thumbnails" / f"{v_stem}_thumb.jpg"
+                if cand_thumb.exists():
+                    thumb = cand_thumb
+
+            logger.info(f"Uploading Reel via Mobile Private API (@clipperwithout): {video_file.name}")
+            try:
+                media = cl.clip_upload(path=video_file, caption=full_caption, thumbnail=thumb)
+            except Exception as up_err:
+                # If session expired or challenge needed, attempt fast re-login
+                if "login_required" in str(up_err).lower() or "challenge" in str(up_err).lower():
+                    logger.info("Session expired; refreshing login credentials for @clipperwithout...")
+                    cl.login("clipperwithout", "Akhatri@777")
+                    cl.dump_settings(str(INSTAGRAM_SESSION_PATH))
+                    media = cl.clip_upload(path=video_file, caption=full_caption, thumbnail=thumb)
+                else:
+                    raise up_err
+
+            reel_url = f"https://www.instagram.com/reel/{media.code}/"
+            logger.info(f"🎉 Instagram Reel successfully published! {reel_url}")
+
+            # Update Anti-Ban Guard
+            try:
+                from jarvis.backend.social.anti_ban_guard import anti_ban_guard
+                anti_ban_guard.record_instagram_post(media.code)
+            except Exception:
+                pass
+
+            # Record in SQLite database
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO instagram_schedule_queue (video_path, caption, hashtags, status, published_at, post_id, post_url) VALUES (?, ?, ?, 'PUBLISHED', CURRENT_TIMESTAMP, ?, ?)",
+                    (str(video_file), caption, json.dumps(tags or []), str(media.pk), reel_url)
+                )
+                conn.commit()
+                conn.close()
+            except Exception as dbe:
+                logger.debug(f"DB insert social post notice: {dbe}")
+
+            return {
+                "success": True,
+                "url": reel_url,
+                "code": media.code,
+                "media_id": media.pk,
+                "account": "clipperwithout",
+                "engine": "Mobile Private API (Instant, No Captcha)",
+                "message": f"Successfully published Reel to @clipperwithout: {reel_url}"
+            }
+
+        return await asyncio.to_thread(_sync_worker)
 
     async def _upload_reel_impl(
         self,
