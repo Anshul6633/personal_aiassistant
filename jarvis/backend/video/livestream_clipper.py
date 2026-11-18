@@ -346,13 +346,14 @@ class LivestreamClipperManager:
         self,
         live_url: str,
         slice_duration: int = 180,
-        num_clips: int = 1,
+        num_clips: int = 2,
         target_clip_duration: float = 45.0,
         style_preset: str = "flame",
         custom_tags: Optional[List[str]] = None,
         credits_name: str = "CarryMinati",
         channel_handle: str = "@CarryisLive",
-        sleep_between_cycles: int = 35
+        sleep_between_cycles: int = 35,
+        crop_mode: str = "fill"
     ) -> Dict[str, Any]:
         """Continuous live stream ingest, AI hook slicing, and YouTube Shorts auto-upload loop."""
         self.continuous_running = True
@@ -412,7 +413,8 @@ class LivestreamClipperManager:
                         num_clips=clips_to_generate,
                         target_duration=target_clip_duration,
                         style_preset=style_preset,
-                        auto_publish_youtube=False
+                        auto_publish_youtube=False,
+                        crop_mode=crop_mode
                     )
                 except Exception as pe:
                     self._log(f"Error in clipping pipeline for cycle #{cycle}: {pe}")

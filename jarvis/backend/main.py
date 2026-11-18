@@ -715,6 +715,7 @@ class ContinuousLivestreamRequest(BaseModel):
     tags: Optional[List[str]] = None
     credits_name: Optional[str] = "CarryMinati"
     channel_handle: Optional[str] = "@CarryisLive"
+    crop_mode: Optional[str] = "fill"
 
 
 @app.post("/api/livestream/continuous/start")
@@ -728,12 +729,13 @@ async def start_continuous_livestream(req: ContinuousLivestreamRequest, backgrou
         livestream_clipper.run_continuous_pipeline,
         live_url=req.url,
         slice_duration=req.slice_duration or 180,
-        num_clips=req.num_clips or 1,
+        num_clips=req.num_clips or 2,
         target_clip_duration=req.target_clip_duration or 45.0,
         style_preset=req.style_preset or "flame",
         custom_tags=req.tags,
         credits_name=req.credits_name or "CarryMinati",
-        channel_handle=req.channel_handle or "@CarryisLive"
+        channel_handle=req.channel_handle or "@CarryisLive",
+        crop_mode=req.crop_mode or "fill"
     )
     return {
         "status": "CONTINUOUS_CLIPPING_STARTED",

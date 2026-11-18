@@ -41,7 +41,8 @@ class VideoPipeline:
         style_preset: str = "podcast",
         auto_publish_youtube: bool = False,
         publish_interval_minutes: int = 45,
-        privacy: str = "schedule"
+        privacy: str = "schedule",
+        crop_mode: str = "fill"
     ) -> List[Dict[str, Any]]:
         """Run the complete autonomous clipping pipeline on a local video or YouTube URL."""
         if not task_id:
@@ -228,7 +229,7 @@ class VideoPipeline:
                     style=style_preset
                 )
     
-                # Render 9:16 vertical MP4
+                # Render 9:16 vertical MP4 (Full edge-to-edge frame, no background bars)
                 rendered = await loop.run_in_executor(
                     None,
                     video_editor.render_vertical_clip,
@@ -236,7 +237,9 @@ class VideoPipeline:
                     cand["start_time"],
                     cand["end_time"],
                     clip_label,
-                    ass_path
+                    ass_path,
+                    False,
+                    crop_mode
                 )
     
                 # Format high-CTR viral title

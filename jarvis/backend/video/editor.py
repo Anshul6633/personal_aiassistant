@@ -256,22 +256,28 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         end_time: float,
         output_name: str,
         subtitles_ass: Optional[str] = None,
-        trim_silence: bool = False
+        trim_silence: bool = False,
+        crop_mode: str = "fill"
     ) -> Dict[str, str]:
-        """Cut video, re-frame to 1080x1920 (9:16), burn subtitles, and normalize audio."""
+        """Cut video, re-frame to 1080x1920 (9:16), burn subtitles, and normalize audio.
+
+        Args:
+            crop_mode: 'fill' (full 9:16 edge-to-edge frame, NO background bars) or
+                       'blur' (centered 16:9 box with blurred mirror background).
+        """
         duration = end_time - start_time
         out_mp4 = str(REELS_DIR / f"{output_name}.mp4")
         out_thumb = str(THUMBS_DIR / f"{output_name}_thumb.jpg")
 
-        # FFmpeg filter:
-        # 1. Background: scale to 1080x1920 with high blur
-        # 2. Foreground: scale to width 1080, centered on canvas
-        # 3. Audio: loudnorm broadcast normalization + optional pause trimming
-        filter_complex = (
-            "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:5[bg];"
-            "[0:v]scale=1080:-1[fg];"
-            "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]"
-        )
+        if crop_mode == "blur":
+            filter_complex = (
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:5[bg];"
+                "[0:v]scale=1080:-1[fg];"
+                "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]"
+            )
+        else:
+            # Full 9:16 edge-to-edge frame fill (NO background bars, 100% immersive)
+            filter_complex = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[base]"
 
         final_video_label = "[base]"
         if subtitles_ass and Path(subtitles_ass).exists():
