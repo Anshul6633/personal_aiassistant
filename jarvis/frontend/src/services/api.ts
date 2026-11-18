@@ -953,7 +953,17 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ video_path: videoPath, name, start_time: startTime, project_id: id }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const errRaw = await res.text();
+      let msg = errRaw;
+      try {
+        const parsed = JSON.parse(errRaw);
+        if (parsed.detail) {
+          msg = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+        }
+      } catch {}
+      throw new Error(msg);
+    }
     return res.json();
   },
 

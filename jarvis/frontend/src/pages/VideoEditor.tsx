@@ -1074,9 +1074,15 @@ export const VideoEditor: React.FC<VideoEditorProps> = ({ clips, onRefreshClips 
         insertTime = Math.round(currentTime * 10) / 10;
       }
 
+      const videoTarget = candidate.output_path || candidate.video_url || candidate.source_file;
+      if (!videoTarget) {
+        setAiNotice("No media file found for this clip candidate.");
+        return;
+      }
+
       const res = await api.importClippedToStudio(
         activeProj?.id,
-        candidate.output_path || candidate.source_file,
+        videoTarget,
         candidate.title,
         insertTime
       );
@@ -1089,11 +1095,12 @@ export const VideoEditor: React.FC<VideoEditorProps> = ({ clips, onRefreshClips 
         if (res.clip) {
           setSelectedClipId(res.clip.id);
           setCurrentTime(res.clip.start_time);
-          setAiNotice(`Imported '${candidate.title}' and jumped playhead to ${res.clip.start_time.toFixed(1)}s.`);
+          setAiNotice(`Imported '${candidate.title}' to timeline at ${res.clip.start_time.toFixed(1)}s.`);
         }
       }
     } catch (e: any) {
-      alert(`Error importing clip: ${e.message}`);
+      console.error("Error importing clip:", e);
+      setAiNotice(`Clip import failed: ${e.message}`);
     }
   };
 

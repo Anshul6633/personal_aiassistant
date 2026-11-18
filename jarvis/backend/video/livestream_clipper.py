@@ -120,6 +120,8 @@ class LivestreamClipperManager:
         if not v_formats:
             raise ValueError(f"Could not extract live HLS stream URLs from {live_url}")
 
+        # Sort video formats to guarantee the HIGHEST resolution (1080p60) and maximum bitrate
+        v_formats.sort(key=lambda f: (f.get("height") or 0, f.get("tbr") or 0, f.get("fps") or 0))
         best_v = v_formats[-1]
         best_a = a_formats[-1] if a_formats else None
 
@@ -353,7 +355,7 @@ class LivestreamClipperManager:
         credits_name: str = "CarryMinati",
         channel_handle: str = "@CarryisLive",
         sleep_between_cycles: int = 35,
-        crop_mode: str = "split_cam"
+        crop_mode: str = "auto"
     ) -> Dict[str, Any]:
         """Continuous live stream ingest, AI hook slicing, and YouTube Shorts auto-upload loop."""
         self.continuous_running = True
@@ -414,7 +416,8 @@ class LivestreamClipperManager:
                         target_duration=target_clip_duration,
                         style_preset=style_preset,
                         auto_publish_youtube=False,
-                        crop_mode=crop_mode
+                        crop_mode=crop_mode or "auto",
+                        cycle_index=cycle - 1
                     )
                 except Exception as pe:
                     self._log(f"Error in clipping pipeline for cycle #{cycle}: {pe}")
@@ -517,7 +520,8 @@ class LivestreamClipperManager:
                                     headless=False
                                 )
                                 if ig_res.get("success"):
-                                    self._log(f"✅ [Instagram] Reel published successfully to @{ig_status.get('username')}!")
+                                    reel_pub_url = ig_res.get("url", "")
+                                    self._log(f"✅ [Instagram] Reel published successfully to @{ig_status.get('username')}! {reel_pub_url}")
                                     try:
                                         conn = get_db_connection()
                                         cur = conn.cursor()

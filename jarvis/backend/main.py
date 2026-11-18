@@ -715,7 +715,7 @@ class ContinuousLivestreamRequest(BaseModel):
     tags: Optional[List[str]] = None
     credits_name: Optional[str] = "CarryMinati"
     channel_handle: Optional[str] = "@CarryisLive"
-    crop_mode: Optional[str] = "split_cam"
+    crop_mode: Optional[str] = "auto"
 
 
 @app.post("/api/livestream/continuous/start")
@@ -735,7 +735,7 @@ async def start_continuous_livestream(req: ContinuousLivestreamRequest, backgrou
         custom_tags=req.tags,
         credits_name=req.credits_name or "CarryMinati",
         channel_handle=req.channel_handle or "@CarryisLive",
-        crop_mode=req.crop_mode or "split_cam"
+        crop_mode=req.crop_mode or "auto"
     )
     return {
         "status": "CONTINUOUS_CLIPPING_STARTED",
@@ -1977,13 +1977,13 @@ async def _execute_import_clipped(target_project_id: Optional[str], req: ImportC
     }
 
 
-@app.post("/api/studio/projects/import-clipped")
+@app.api_route("/api/studio/projects/import-clipped", methods=["POST", "PUT"])
 async def api_studio_import_clipped_root(req: ImportClippedRequest):
     """Import an autonomous vertical clip into Studio Project timeline (auto-resolving active project)."""
     return await _execute_import_clipped(req.project_id, req)
 
 
-@app.post("/api/studio/projects/{project_id}/import-clipped")
+@app.api_route("/api/studio/projects/{project_id}/import-clipped", methods=["POST", "PUT"])
 async def api_studio_import_clipped(project_id: str, req: ImportClippedRequest):
     """Import an autonomous vertical clip into the Studio Project timeline."""
     clean_id = project_id if (project_id and str(project_id).strip() not in ("undefined", "null", "")) else req.project_id

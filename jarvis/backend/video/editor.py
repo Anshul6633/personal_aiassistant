@@ -187,10 +187,20 @@ class VideoEditor:
         clip_start: float,
         clip_end: float,
         output_ass_path: str,
-        style: str = "podcast"
+        style: str = "podcast",
+        crop_mode: Optional[str] = None
     ) -> str:
         """Generate styled Advanced SubStation Alpha (.ass) subtitles with keyword highlights and preset styling."""
-        preset = STYLE_PRESETS.get(style.lower(), STYLE_PRESETS["podcast"])
+        preset = STYLE_PRESETS.get(style.lower(), STYLE_PRESETS["podcast"]).copy()
+
+        # Adapt subtitle vertical position dynamically based on layout structure
+        margin_v = preset.get("margin_v", 540)
+        if crop_mode in ("reversed_split", "reversed", "gameplay_top"):
+            margin_v = 820  # Position in lower center of top gameplay section
+        elif crop_mode in ("pip_cam", "pip_reaction", "pip"):
+            margin_v = 580  # Position in lower third of full vertical action
+        elif crop_mode in ("split_cam", "gaming", "streamer_face", "facecam"):
+            margin_v = 540  # Centered over bottom gameplay section
 
         header = f"""[Script Info]
 ScriptType: v4.00+
@@ -200,7 +210,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{preset['font']},{preset['size']},{preset['primary']},{preset['secondary']},{preset['outline_col']},{preset['back_col']},{preset['bold']},0,0,0,100,100,0,0,1,{preset['outline']},{preset['shadow']},2,60,60,{preset['margin_v']},1
+Style: Default,{preset['font']},{preset['size']},{preset['primary']},{preset['secondary']},{preset['outline_col']},{preset['back_col']},{preset['bold']},0,0,0,100,100,0,0,1,{preset['outline']},{preset['shadow']},2,60,60,{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -271,21 +281,36 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         if crop_mode == "blur":
             filter_complex = (
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:5[bg];"
-                "[0:v]scale=1080:-1[fg];"
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,boxblur=25:5[bg];"
+                "[0:v]scale=1080:-1:flags=lanczos,unsharp=3:3:0.6:3:3:0.0[fg];"
                 "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]"
             )
-        elif crop_mode in ("split_cam", "gaming", "streamer_face", "facecam"):
-            # High-Impact Gaming Split: Streamer Facecam Top (40%) + Gameplay Action Bottom (60%)
-            # Stacks 1080x740 (Facecam) + 1080x1180 (Gameplay) into full 1080x1920 9:16 vertical canvas
+        elif crop_mode in ("pip_cam", "pip_reaction", "pip"):
+            # Structure B: Full 9:16 Action Gameplay with Floating Reaction Cam Badge
             filter_complex = (
-                "[0:v]crop=370:250:15:435,scale=1080:740[cam];"
-                "[0:v]crop=1300:1080:550:0,scale=1080:1180[game];"
-                "[cam][game]vstack[base]"
+                "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,unsharp=3:3:0.6:3:3:0.0[bg];"
+                "[0:v]crop=370:250:15:435,scale=400:270:flags=lanczos,unsharp=5:5:0.8:5:5:0.0,drawbox=x=0:y=0:w=400:h=270:color=cyan@0.85:t=4[pip];"
+                "[bg][pip]overlay=x=40:y=80[base]"
+            )
+        elif crop_mode in ("reversed_split", "reversed", "gameplay_top"):
+            # Structure C: Gameplay Hero Top (60%) + Streamer Reaction Cam Bottom (40%)
+            filter_complex = (
+                "[0:v]crop=1300:1080:550:0,scale=1080:1180:flags=lanczos,unsharp=3:3:0.6:3:3:0.0[game];"
+                "[0:v]crop=370:250:15:435,scale=1080:740:flags=lanczos,unsharp=5:5:0.8:5:5:0.0[cam];"
+                "[game][cam]vstack[vst];"
+                "[vst]drawbox=x=0:y=1178:w=1080:h=4:color=magenta@0.85:t=fill[base]"
+            )
+        elif crop_mode in ("split_cam", "gaming", "streamer_face", "facecam"):
+            # Structure A: Streamer Facecam Top (40%) + Gameplay Action Bottom (60%)
+            filter_complex = (
+                "[0:v]crop=370:250:15:435,scale=1080:740:flags=lanczos,unsharp=5:5:0.8:5:5:0.0[cam];"
+                "[0:v]crop=1300:1080:550:0,scale=1080:1180:flags=lanczos,unsharp=3:3:0.6:3:3:0.0[game];"
+                "[cam][game]vstack[vst];"
+                "[vst]drawbox=x=0:y=738:w=1080:h=4:color=cyan@0.85:t=fill[base]"
             )
         else:
-            # Full 9:16 edge-to-edge frame fill (NO background bars, 100% immersive)
-            filter_complex = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[base]"
+            # Full 9:16 edge-to-edge frame fill (NO background bars, 100% immersive) with Lanczos + Unsharp
+            filter_complex = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,unsharp=3:3:0.6:3:3:0.0[base]"
 
         final_video_label = "[base]"
         if subtitles_ass and Path(subtitles_ass).exists():
@@ -307,10 +332,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", final_video_label,
             "-map", "0:a?",
             "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "22",
+            "-preset", "fast",
+            "-crf", "17",
+            "-maxrate", "14M",
+            "-bufsize", "28M",
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac",
-            "-b:a", "192k",
+            "-b:a", "256k",
             "-af", audio_filter,
             out_mp4
         ]

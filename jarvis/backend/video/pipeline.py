@@ -42,7 +42,8 @@ class VideoPipeline:
         auto_publish_youtube: bool = False,
         publish_interval_minutes: int = 45,
         privacy: str = "schedule",
-        crop_mode: str = "fill"
+        crop_mode: str = "fill",
+        cycle_index: int = 0
     ) -> List[Dict[str, Any]]:
         """Run the complete autonomous clipping pipeline on a local video or YouTube URL."""
         if not task_id:
@@ -216,20 +217,40 @@ class VideoPipeline:
                 progress_pct = int(60 + (idx / total_to_render) * 35)
                 await state_manager.update(task_progress=progress_pct)
     
-                # Enrich with viral title, caption and hashtags via local Ollama
+                # Enrich with viral title, caption and hashtags via local Ollama / Groq AI
                 enriched = await highlight_detector.enrich_with_ai(cand)
-    
-                # Generate ASS subtitles for this specific clip time window
+
+                # Dynamic structure rotation: eliminates repetitive spam appearance
+                # Rotates between:
+                # 1. split_cam: Facecam Top (38%), Gameplay Bottom (62%), cyan neon divider
+                # 2. pip_cam: Full 9:16 Action Gameplay with floating reaction badge
+                # 3. reversed_split: Gameplay Hero Top (60%), Facecam Bottom (40%), magenta divider
+                global_clip_idx = (cycle_index * num_clips) + (idx - 1)
+                if crop_mode in ("auto", "dynamic", "split_cam", "gaming", "rotate"):
+                    layouts = ["split_cam", "pip_cam", "reversed_split"]
+                    clip_crop_mode = layouts[global_clip_idx % len(layouts)]
+                else:
+                    clip_crop_mode = crop_mode
+
+                # Dynamic subtitle style rotation: flame -> mrbeast -> cyberpunk -> podcast
+                if style_preset in ("auto", "dynamic", "podcast", "flame"):
+                    styles = ["flame", "mrbeast", "cyberpunk", "podcast"]
+                    clip_style_preset = styles[global_clip_idx % len(styles)]
+                else:
+                    clip_style_preset = style_preset
+
+                # Generate ASS subtitles for this specific clip time window & layout structure
                 ass_path = str(SUBS_DIR / f"{clip_label}.ass")
                 video_editor.generate_ass_subtitles(
                     transcript["words"],
                     clip_start=cand["start_time"],
                     clip_end=cand["end_time"],
                     output_ass_path=ass_path,
-                    style=style_preset
+                    style=clip_style_preset,
+                    crop_mode=clip_crop_mode
                 )
-    
-                # Render 9:16 vertical MP4 (Full edge-to-edge frame, no background bars)
+
+                # Render 9:16 vertical MP4 with Ultra-HD studio mastering
                 rendered = await loop.run_in_executor(
                     None,
                     video_editor.render_vertical_clip,
@@ -239,7 +260,7 @@ class VideoPipeline:
                     clip_label,
                     ass_path,
                     False,
-                    crop_mode
+                    clip_crop_mode
                 )
     
                 # Format high-CTR viral title
