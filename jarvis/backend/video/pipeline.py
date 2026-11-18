@@ -20,7 +20,7 @@ from jarvis.backend.video.clip_scorer import clip_scorer
 from jarvis.backend.video.editor import video_editor
 from jarvis.backend.database.db import get_db_connection
 from jarvis.backend.core.state import state_manager, AssistantState
-from jarvis.backend.config.settings import OUTPUT_DIR
+from jarvis.backend.config.settings import OUTPUT_DIR, settings
 
 logger = logging.getLogger("JARVIS.Pipeline")
 
@@ -55,14 +55,21 @@ class VideoPipeline:
         source_channel = None
 
         try:
-                # 0. Check if input is a YouTube URL
+            # 0. Check if input is a YouTube URL
             if source_manager.is_youtube_url(video_path):
                 source_url = video_path.strip()
                 await state_manager.set_status(AssistantState.PLANNING, f"Ingesting YouTube video {source_url}...")
                 await state_manager.update(active_task_id=task_id, task_progress=5)
                 logger.info(f"Downloading YouTube source video: {source_url}")
-                
-                yt_meta = await loop.run_in_executor(None, source_manager.download_youtube_source, source_url)
+
+                def _dl_progress(pct: int, msg: str):
+                    try:
+                        asyncio.run_coroutine_threadsafe(state_manager.update(task_progress=pct), loop)
+                        asyncio.run_coroutine_threadsafe(state_manager.set_status(AssistantState.PLANNING, msg), loop)
+                    except Exception:
+                        pass
+
+                yt_meta = await loop.run_in_executor(None, source_manager.download_youtube_source, source_url, _dl_progress)
                 source_title = yt_meta.get("title")
                 source_channel = yt_meta.get("uploader") or yt_meta.get("channel")
                 video_path = yt_meta["file_path"]
@@ -70,21 +77,64 @@ class VideoPipeline:
             else:
                 await state_manager.set_status(AssistantState.PLANNING, f"Ingesting source video {Path(video_path).name}...")
                 await state_manager.update(active_task_id=task_id, task_progress=5)
-    
+
             # 1. Inspect source video metadata
             meta = source_manager.extract_metadata(video_path)
-            logger.info(f"Source video metadata: {meta['duration']}s, {meta['width']}x{meta['height']}")
-    
-            # 2. Demux audio for Whisper
-            await state_manager.set_status(AssistantState.PLANNING, "Demuxing high-fidelity audio track...")
-            await state_manager.update(task_progress=15)
-            wav_path = source_manager.extract_audio_track(video_path)
-    
-            # 3. Transcribe with word-level timestamps using faster-whisper
-            await state_manager.set_status(AssistantState.EXECUTING, "Transcribing speech with faster-whisper (GPU/CPU)...")
-            await state_manager.update(task_progress=30)
-            # Run transcription in threadpool to keep async loop responsive
-            transcript = await loop.run_in_executor(None, stt_engine.transcribe_file, wav_path)
+            total_dur = meta.get("duration", 0.0)
+            logger.info(f"Source video metadata: {total_dur}s, {meta['width']}x{meta['height']}")
+
+            # 2 & 3. Transcribe speech with word-level timestamps (optimized for long videos & cloud)
+            is_cloud = bool(os.getenv("RENDER") or getattr(settings, "HEADLESS", False))
+            if total_dur > 900.0 or is_cloud:
+                logger.info(f"Long source video ({total_dur:.1f}s) or cloud deployment detected. Using smart multi-window audio sampling.")
+                await state_manager.set_status(AssistantState.PLANNING, f"Long video ({int(total_dur/60)}m): sampling candidate highlight windows...")
+                await state_manager.update(task_progress=15)
+
+                sample_count = max(num_clips * 2, 8)
+                window_len = min(75.0, target_duration + 25.0)
+                # Distribute candidate anchors across 3% to 92% of the total runtime
+                step = (total_dur * 0.89) / max(1, sample_count)
+                anchor_starts = [round((total_dur * 0.03) + i * step, 1) for i in range(sample_count)]
+
+                all_segments = []
+                all_words = []
+
+                for s_idx, a_start in enumerate(anchor_starts, 1):
+                    sub_pct = int(15 + (s_idx / sample_count) * 30)
+                    await state_manager.update(task_progress=sub_pct)
+                    await state_manager.set_status(
+                        AssistantState.EXECUTING,
+                        f"Transcribing candidate window {s_idx}/{sample_count} (at {int(a_start//60)}m {int(a_start%60)}s)..."
+                    )
+                    slice_wav = await loop.run_in_executor(None, source_manager.extract_audio_slice, video_path, a_start, window_len)
+                    slice_res = await loop.run_in_executor(None, stt_engine.transcribe_file, slice_wav)
+
+                    for seg in slice_res.get("segments", []):
+                        seg_copy = dict(seg)
+                        seg_copy["start"] = round(seg["start"] + a_start, 2)
+                        seg_copy["end"] = round(seg["end"] + a_start, 2)
+                        for w in seg_copy.get("words", []):
+                            w_copy = dict(w)
+                            w_copy["start"] = round(w["start"] + a_start, 2)
+                            w_copy["end"] = round(w["end"] + a_start, 2)
+                            all_words.append(w_copy)
+                        all_segments.append(seg_copy)
+
+                transcript = {
+                    "language": "en",
+                    "duration": total_dur,
+                    "text": " ".join(s.get("text", "") for s in all_segments),
+                    "segments": all_segments,
+                    "words": all_words
+                }
+            else:
+                await state_manager.set_status(AssistantState.PLANNING, "Demuxing high-fidelity audio track...")
+                await state_manager.update(task_progress=15)
+                wav_path = source_manager.extract_audio_track(video_path)
+
+                await state_manager.set_status(AssistantState.EXECUTING, "Transcribing speech with faster-whisper (GPU/CPU)...")
+                await state_manager.update(task_progress=30)
+                transcript = await loop.run_in_executor(None, stt_engine.transcribe_file, wav_path)
     
             # Save complete SRT/VTT for source video
             srt_path = str(SUBS_DIR / f"{Path(video_path).stem}_full.srt")

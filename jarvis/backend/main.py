@@ -8,6 +8,8 @@ import os
 import json
 import time
 import uuid
+import shutil
+import urllib.parse
 import subprocess
 import asyncio
 import logging
@@ -1847,6 +1849,110 @@ async def api_studio_split_clip(project_id: str, req: SplitClipRequest):
 
     project_manager.save_project(proj)
     return {"project": proj, "new_clip": new_clip}
+
+
+class ImportClippedRequest(BaseModel):
+    video_path: str
+    name: Optional[str] = None
+    start_time: Optional[float] = 0.0
+
+
+@app.post("/api/studio/projects/{project_id}/import-clipped")
+async def api_studio_import_clipped(project_id: str, req: ImportClippedRequest):
+    """Import an autonomous vertical clip into the Studio Project timeline."""
+    proj = project_manager.load_project(project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail=f"Studio project {project_id} not found")
+
+    v_path = Path(req.video_path)
+    if not v_path.exists():
+        for sub in ["reels", "shorts", "livestreams", "downloads"]:
+            cand = OUTPUT_DIR / sub / v_path.name
+            if cand.exists():
+                v_path = cand
+                break
+
+    from jarvis.backend.video.source_manager import source_manager
+    try:
+        meta = source_manager.extract_metadata(str(v_path))
+        dur = float(meta.get("duration", 15.0))
+    except Exception:
+        dur = 15.0
+
+    norm_path = str(v_path.resolve()).replace("\\", "/")
+    media_url = f"/api/files/stream?path={urllib.parse.quote(norm_path)}"
+    clip_name = req.name or v_path.stem
+
+    start_t = float(req.start_time) if req.start_time is not None else 0.0
+    v1_clips = [c for c in proj.clips if c.track_id == "V1"]
+    if v1_clips and start_t == 0.0:
+        start_t = max(c.start_time + c.duration for c in v1_clips)
+
+    new_clip = StudioClip(
+        id=str(uuid.uuid4())[:8],
+        track_id="V1",
+        name=clip_name,
+        source_type="video",
+        source_file=str(v_path),
+        source_url=media_url,
+        start_time=round(start_t, 2),
+        duration=round(dur, 2),
+        in_point=0.0,
+        out_point=round(dur, 2)
+    )
+
+    proj.clips.append(new_clip)
+    if (start_t + dur) > proj.duration:
+        proj.duration = round(start_t + dur + 5.0, 1)
+
+    project_manager.save_project(proj)
+    return {
+        "success": True,
+        "project": proj.model_dump(),
+        "clip": new_clip.model_dump()
+    }
+
+
+@app.post("/api/studio/projects/{project_id}/export-fcpxml")
+async def api_studio_export_fcpxml(project_id: str):
+    """Export studio project to Apple Final Cut Pro XML (FCPXML v1.9) for DaVinci Resolve."""
+    proj = project_manager.load_project(project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail=f"Studio project {project_id} not found")
+
+    fcpxml_dir = OUTPUT_DIR / "timelines"
+    fcpxml_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(c for c in proj.name if c.isalnum() or c in ("-", "_"))[:40]
+    out_path = fcpxml_dir / f"{proj.id}_{safe_name}.fcpxml"
+
+    TimelineEngine.to_fcpxml(proj, str(out_path))
+    norm_path = str(out_path.resolve()).replace("\\", "/")
+    dl_url = f"/api/files/stream?path={urllib.parse.quote(norm_path)}"
+    return {
+        "success": True,
+        "fcpxml_path": str(out_path),
+        "download_url": dl_url,
+        "project_name": proj.name
+    }
+
+
+@app.post("/api/studio/upload")
+async def api_studio_upload_media(file: UploadFile = File(...)):
+    """Upload user media into the studio asset library."""
+    upload_dir = OUTPUT_DIR / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = upload_dir / file.filename
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    norm_path = str(dest_path.resolve()).replace("\\", "/")
+    media_url = f"/api/files/stream?path={urllib.parse.quote(norm_path)}"
+    return {
+        "success": True,
+        "filename": file.filename,
+        "path": str(dest_path),
+        "url": media_url
+    }
 
 
 @app.post("/api/studio/projects/{project_id}/ai-edit")

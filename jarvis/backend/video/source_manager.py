@@ -97,6 +97,25 @@ class SourceVideoManager:
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True)
         return out_wav
 
+    def extract_audio_slice(self, video_path: str, start_s: float, duration_s: float) -> str:
+        """Demux a short time slice of audio directly using fast FFmpeg seek."""
+        stem = Path(video_path).stem
+        out_wav = str(TEMP_AUDIO_DIR / f"{stem}_slice_{int(start_s)}_{int(duration_s)}.wav")
+        cmd = [
+            self.ffmpeg,
+            "-y",
+            "-ss", str(round(start_s, 2)),
+            "-t", str(round(duration_s, 2)),
+            "-i", video_path,
+            "-vn",
+            "-acodec", "pcm_s16le",
+            "-ar", "16000",
+            "-ac", "1",
+            out_wav
+        ]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True)
+        return out_wav
+
     def scan_folder_for_videos(self, folder_path: str) -> List[str]:
         """Scan a folder recursively for video files."""
         valid_exts = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".flv"}
@@ -117,7 +136,7 @@ class SourceVideoManager:
         pattern = r"^(https?://)?(www\.|m\.)?(youtube\.com|youtu\.be)/.+"
         return bool(re.match(pattern, url.strip()))
 
-    def download_youtube_source(self, url: str) -> Dict[str, Any]:
+    def download_youtube_source(self, url: str, progress_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Ingest video source from authorized YouTube URL via yt-dlp with rich metadata."""
         import yt_dlp
         import shutil
@@ -142,6 +161,20 @@ class SourceVideoManager:
             logger.debug(f"Live probe pass: {pe}")
 
         ydl_opts = get_ytdlp_download_opts(out_template=out_template, ffmpeg_location=ffmpeg_dir)
+
+        if progress_callback:
+            def _ytdlp_hook(d):
+                if d.get("status") == "downloading":
+                    total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                    downloaded = d.get("downloaded_bytes", 0)
+                    speed = d.get("speed", 0) or 0
+                    if total > 0:
+                        pct = min(25, int(5 + (downloaded / total) * 20))
+                        mb_down = round(downloaded / (1024 * 1024), 1)
+                        mb_total = round(total / (1024 * 1024), 1)
+                        spd_mb = round(speed / (1024 * 1024), 1)
+                        progress_callback(pct, f"Downloading YouTube video ({pct}% - {mb_down}/{mb_total}MB at {spd_mb}MB/s)...")
+            ydl_opts["progress_hooks"] = [_ytdlp_hook]
 
         logger.info(f"Downloading YouTube video from: {url}")
         info = safe_extract_info(url, download=True, extra_opts=ydl_opts)

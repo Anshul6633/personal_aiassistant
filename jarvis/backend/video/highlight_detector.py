@@ -85,7 +85,8 @@ class HighlightDetector:
         return candidates
 
     async def enrich_with_ai(self, candidate: Dict[str, Any]) -> Dict[str, Any]:
-        """Use local Ollama to craft viral title, engaging caption, and high-CTR hashtags."""
+        """Craft viral title, engaging caption, and high-CTR hashtags using Groq Cloud or local Ollama."""
+        from jarvis.backend.database.memory import memory_manager
         prompt = f"""You are a viral social media video editor for YouTube Shorts and Instagram Reels.
 Analyze this video clip transcript and produce metadata:
 
@@ -100,8 +101,39 @@ Output valid JSON ONLY with this schema:
   "hook_rating": 85
 }}"""
 
+        # Priority 1: Groq Cloud LPU (Ultra-fast, zero-cost, works on Render & cloud)
+        groq_key = settings.GROQ_API_KEY or memory_manager.get_memory("groq_api_key")
+        if groq_key:
+            for g_model in ["llama-3.3-70b-versatile", "qwen/qwen3.8-27b"]:
+                try:
+                    payload = {
+                        "model": g_model,
+                        "messages": [
+                            {"role": "system", "content": "You are a viral short-form video metadata expert. Respond ONLY with valid JSON."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "response_format": {"type": "json_object"},
+                        "temperature": 0.5,
+                        "max_tokens": 180
+                    }
+                    async with httpx.AsyncClient(timeout=8.0) as client:
+                        res = await client.post(
+                            "https://api.groq.com/openai/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {groq_key}"},
+                            json=payload
+                        )
+                        if res.status_code == 200:
+                            data = json.loads(res.json()["choices"][0]["message"]["content"])
+                            candidate["title"] = data.get("title", candidate["text"][:45] + "...")
+                            candidate["caption"] = data.get("caption", candidate["text"][:120] + "...")
+                            candidate["tags"] = " ".join(data.get("hashtags", ["#shorts", "#reels", "#viral"]))
+                            return candidate
+                except Exception as ge:
+                    logger.debug(f"Groq enrich note ({g_model}): {ge}")
+
+        # Priority 2: Local Ollama (fast timeout so it never hangs if Ollama is stopped)
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=4.0) as client:
                 res = await client.post(
                     f"{settings.OLLAMA_BASE_URL}/api/generate",
                     json={
@@ -118,9 +150,9 @@ Output valid JSON ONLY with this schema:
                     candidate["tags"] = " ".join(data.get("hashtags", ["#shorts", "#reels", "#viral"]))
                     return candidate
         except Exception as e:
-            logger.warning(f"Could not enrich candidate with AI: {e}")
+            logger.debug(f"Ollama enrich pass: {e}")
 
-        # Fallback default metadata
+        # Priority 3: Fallback default metadata
         candidate["title"] = candidate["text"][:45] + "..."
         candidate["caption"] = candidate["text"][:150]
         candidate["tags"] = "#shorts #reels #viral #podcast #trending"
