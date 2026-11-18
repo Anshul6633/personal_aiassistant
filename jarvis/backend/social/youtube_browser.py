@@ -501,8 +501,7 @@ class YouTubeBrowserUploader:
                                     await dp_input.press("Control+A")
                                     await dp_input.type(schedule_date, delay=20)
                                     await dp_input.press("Enter")
-                                    await asyncio.sleep(0.3)
-                                    await page.keyboard.press("Escape")
+                                    await asyncio.sleep(0.5)
                                     logger.info(f"Set YouTube Studio schedule date to: {schedule_date}")
                         except Exception as de:
                             logger.warning(f"Could not type schedule date: {de}")
@@ -517,8 +516,11 @@ class YouTubeBrowserUploader:
                                 await time_input.press("Control+A")
                                 await time_input.type(schedule_time, delay=20)
                                 await time_input.press("Enter")
-                                await asyncio.sleep(0.3)
-                                await page.keyboard.press("Escape")
+                                await asyncio.sleep(0.5)
+                                # Safely blur dropdown by clicking container background (never send Escape which closes dialog)
+                                bg_el = page.locator("#second-container, ytcp-uploads-dialog #dialog-title").first
+                                if await bg_el.is_visible():
+                                    await bg_el.click(force=True)
                                 await asyncio.sleep(0.5)
                                 logger.info(f"Set YouTube Studio schedule time to: {schedule_time}")
                             except Exception as te:
@@ -584,7 +586,11 @@ class YouTubeBrowserUploader:
 
                 # 10. Done / Schedule / Publish
                 logger.info("Verifying final action button state (Publish / Schedule)...")
-                done_btn = page.locator("ytcp-uploads-dialog #done-button, #done-button, ytcp-button#save-button, #save-button, ytcp-button:has-text('Publish'), ytcp-button:has-text('Schedule')").first
+                done_btn = page.locator("ytcp-uploads-dialog #done-button, ytcp-button#done-button, #done-button, ytcp-button#save-button, #save-button, ytcp-button:has-text('Schedule'), ytcp-button:has-text('Publish')").first
+                try:
+                    await done_btn.scroll_into_view_if_needed()
+                except Exception:
+                    pass
                 await done_btn.wait_for(timeout=25000)
                 btn_label = (await done_btn.inner_text()).strip()
                 logger.info(f"Action button initial text: '{btn_label}'")

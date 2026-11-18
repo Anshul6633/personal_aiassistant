@@ -771,6 +771,19 @@ class YouTubeSchedulerEngine:
         if target_dt < min_allowed:
             target_dt = min_allowed
 
+        # YouTube Studio strictly schedules on 15-minute slot intervals (:00, :15, :30, :45)
+        if platform.lower() == "youtube":
+            remainder = target_dt.minute % 15
+            if remainder != 0:
+                target_dt += timedelta(minutes=(15 - remainder))
+            target_dt = target_dt.replace(second=0, microsecond=0)
+            if target_dt < now + timedelta(minutes=15):
+                target_dt = now + timedelta(minutes=15)
+                rem = target_dt.minute % 15
+                if rem != 0:
+                    target_dt += timedelta(minutes=(15 - rem))
+                target_dt = target_dt.replace(second=0, microsecond=0)
+
         return target_dt
 
     def schedule_instagram_reel(

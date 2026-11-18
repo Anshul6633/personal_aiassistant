@@ -526,7 +526,8 @@ class LivestreamClipperManager:
 
                     # 4. Schedule or Publish Short on YouTube Studio with Reach Pacing
                     yt_target_dt = scheduler_engine.calculate_adaptive_schedule_time(platform="youtube", base_interval_minutes=15)
-                    sched_time_str = yt_target_dt.strftime("%I:%M %p")
+                    # Format time without leading zero (e.g. '8:30 PM' instead of '08:30 PM') as required by YouTube Studio
+                    sched_time_str = yt_target_dt.strftime("%I:%M %p").lstrip("0")
                     sched_date_str = yt_target_dt.strftime("%b %d, %Y")
                     mins_away_yt = max(1, int((yt_target_dt - datetime.now()).total_seconds() / 60))
 
@@ -545,6 +546,8 @@ class LivestreamClipperManager:
                             schedule_time=sched_time_str,
                             schedule_date=sched_date_str
                         )
+                        if not upload_res.get("success"):
+                            raise RuntimeError(upload_res.get("error") or "YouTube Studio browser automation schedule failed")
                         published_url = upload_res.get("video_url") or "SCHEDULED_STUDIO"
                         self._log(f"✅ [CYCLE #{cycle} - CLIP {clip_idx}/{len(clips)}] Scheduled on YouTube Studio successfully! Time: {sched_time_str} | URL: {published_url}")
                         self.current_state["clips_uploaded"].append({
