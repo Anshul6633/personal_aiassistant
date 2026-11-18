@@ -851,10 +851,15 @@ class YouTubeSchedulerEngine:
 
         try:
             logger.info(f"Publishing queued Instagram Reel: {item['file_name']}")
+            v_stem = Path(video_path).stem
+            cand_thumb = WORKSPACE_ROOT / "jarvis" / "output" / "thumbnails" / f"{v_stem}_thumb.jpg"
+            cover_path = str(cand_thumb) if cand_thumb.exists() else None
+
             res = await instagram_browser.upload_reel(
                 video_path=video_path,
                 caption=caption,
                 tags=tags,
+                cover_path=cover_path,
                 headless=True
             )
 

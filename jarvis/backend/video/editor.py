@@ -400,18 +400,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             ]
             subprocess.run(simple_cmd, check=True)
 
-        # Generate thumbnail at midpoint
-        thumb_time = str(duration / 2.0)
-        thumb_cmd = [
-            self.ffmpeg,
-            "-y",
-            "-ss", thumb_time,
-            "-i", out_mp4,
-            "-vframes", "1",
-            "-q:v", "2",
-            out_thumb
-        ]
-        subprocess.run(thumb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Generate high-CTR smart thumbnail with computer vision scoring & viral polish
+        try:
+            from jarvis.backend.video.smart_thumbnail_generator import smart_thumbnail_generator
+            smart_thumbnail_generator.extract_smart_thumbnail(out_mp4, out_thumb)
+        except Exception as e:
+            logger.warning(f"Smart thumbnail generation failed, falling back to midpoint: {e}")
+            thumb_time = str(duration / 2.0)
+            thumb_cmd = [
+                self.ffmpeg,
+                "-y",
+                "-ss", thumb_time,
+                "-i", out_mp4,
+                "-vframes", "1",
+                "-q:v", "2",
+                out_thumb
+            ]
+            subprocess.run(thumb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         return {
             "video_path": out_mp4,
