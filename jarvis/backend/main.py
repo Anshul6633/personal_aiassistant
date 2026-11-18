@@ -727,6 +727,8 @@ async def discover_livestreams(topic: Optional[str] = "live stream", limit: int 
 
 class ContinuousLivestreamRequest(BaseModel):
     url: str
+    alternate_url: Optional[str] = None
+    stream_targets: Optional[List[Dict[str, Any]]] = None
     slice_duration: Optional[int] = 180
     num_clips: Optional[int] = 2
     target_clip_duration: Optional[float] = 24.0
@@ -747,19 +749,23 @@ async def start_continuous_livestream(req: ContinuousLivestreamRequest, backgrou
     background_tasks.add_task(
         livestream_clipper.run_continuous_pipeline,
         live_url=req.url,
+        alternate_url=req.alternate_url,
+        stream_targets=req.stream_targets,
         slice_duration=req.slice_duration or 180,
         num_clips=req.num_clips or 2,
-        target_clip_duration=req.target_clip_duration or 45.0,
+        target_clip_duration=req.target_clip_duration or 22.0,
         style_preset=req.style_preset or "gta6",
         custom_tags=req.tags,
         credits_name=req.credits_name or "CarryMinati",
         channel_handle=req.channel_handle or "@CarryisLive",
         crop_mode=req.crop_mode or "auto"
     )
+    alt_info = f" (Alternating with {req.alternate_url})" if req.alternate_url else ""
     return {
         "status": "CONTINUOUS_CLIPPING_STARTED",
-        "message": f"Continuous clipping loop engaged for {req.url}!",
-        "target": req.url
+        "message": f"Continuous clipping loop engaged for {req.url}{alt_info}!",
+        "target": req.url,
+        "alternate_url": req.alternate_url
     }
 
 

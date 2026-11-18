@@ -136,9 +136,14 @@ class AntiBanGuard:
         selected_hook = random.choice(hooks)
 
         # Instagram 2025/2026 strict cap: 3 to 5 hyper-targeted niche hashtags to prevent spam demotion
-        hashtags_pool = [
-            "#gta6", "#gaming", "#gamingclips", "#carryminati", "#reels", "#gtav", "#viralreels", "#pcgaming"
-        ]
+        c_lower = credits_name.lower()
+        if "speed" in c_lower:
+            hashtags_pool = ["#ishowspeed", "#speed", "#speedlive", "#gta6", "#gaming", "#viralreels", "#gamingclips"]
+        elif "carry" in c_lower:
+            hashtags_pool = ["#carryminati", "#carryislive", "#gta6", "#gaming", "#gamingclips", "#reels", "#viralreels"]
+        else:
+            creator_tag = f"#{credits_name.lower().replace(' ', '')}"
+            hashtags_pool = [creator_tag, "#gta6", "#gaming", "#gamingclips", "#reels", "#viralreels"]
         random.shuffle(hashtags_pool)
         selected_tags = " ".join(hashtags_pool[:5])
 

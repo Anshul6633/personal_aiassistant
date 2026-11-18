@@ -388,6 +388,8 @@ class LivestreamClipperManager:
     async def run_continuous_pipeline(
         self,
         live_url: str,
+        alternate_url: Optional[str] = None,
+        stream_targets: Optional[List[Dict[str, Any]]] = None,
         slice_duration: int = 180,
         num_clips: int = 2,
         target_clip_duration: float = 24.0,
@@ -398,7 +400,7 @@ class LivestreamClipperManager:
         sleep_between_cycles: int = 35,
         crop_mode: str = "auto"
     ) -> Dict[str, Any]:
-        """Continuous live stream ingest, AI hook slicing, and YouTube Shorts auto-upload loop."""
+        """Continuous live stream ingest, AI hook slicing, and YouTube Shorts auto-upload loop with stream alternation."""
         self.continuous_running = True
         self.is_running = True
         self.current_state["status"] = "STREAMING_CONTINUOUS"
@@ -417,65 +419,107 @@ class LivestreamClipperManager:
         # Ensure 180s capture produces 2 high-impact viral clips per slice
         clips_to_generate = max(num_clips, 2) if slice_duration >= 120 else max(1, num_clips)
 
-        self._log(f"🔥 Starting continuous live stream clipping loop on {live_url}...")
-        self._log(f"Targeting {clips_to_generate} clips per {slice_duration}s slice | Tags: {tags_to_use}")
+        # Build alternating multi-stream target list
+        targets: List[Dict[str, Any]] = []
+        if stream_targets:
+            targets = list(stream_targets)
+        elif alternate_url:
+            targets = [
+                {
+                    "url": live_url,
+                    "credits_name": credits_name or "CarryMinati",
+                    "channel_handle": channel_handle or "@CarryisLive",
+                    "stream_title": "CARRYMINATI PLAYS GTA VI",
+                    "tags": custom_tags or default_tags
+                },
+                {
+                    "url": alternate_url,
+                    "credits_name": "IShowSpeed",
+                    "channel_handle": "@IShowSpeed",
+                    "stream_title": "IShowSpeed Playing GTA 6",
+                    "tags": ["ishowspeed", "speed", "gta6", "speedlive", "gaming", "shorts", "reels", "viral", "trending"]
+                }
+            ]
+        else:
+            targets = [
+                {
+                    "url": live_url,
+                    "credits_name": credits_name or "CarryMinati",
+                    "channel_handle": channel_handle or "@CarryisLive",
+                    "stream_title": "CARRYMINATI PLAYS GTA VI",
+                    "tags": tags_to_use
+                }
+            ]
+
+        stream_names = [t.get("credits_name", "Stream") for t in targets]
+        self._log(f"🔥 Starting continuous live stream clipping loop (Alternating Streams: { ' 🔁 '.join(stream_names) })...")
+        self._log(f"Targeting {clips_to_generate} clips per {slice_duration}s slice | Pacing: Alternating cycle-by-cycle")
 
         try:
-            stream_title = "CARRYMINATI PLAYS GTA VI"
-            broadcaster = credits_name or "CarryMinati"
             capture_failures = 0
 
             while self.continuous_running:
-                # 1. Probe if stream is still alive; auto-failover to international stream when concluded
+                # Select stream target for this cycle in alternating sequence
+                active_target = targets[cycle % len(targets)]
+                active_url = active_target["url"]
+                active_creator = active_target.get("credits_name", credits_name)
+                active_handle = active_target.get("channel_handle", channel_handle)
+                active_tags = active_target.get("tags", tags_to_use)
+                stream_title = active_target.get("stream_title", f"{active_creator} Live")
+                broadcaster = active_creator
+
+                # 1. Probe if stream is still alive; try alternate target if inactive
                 try:
-                    probe_info = await loop.run_in_executor(None, safe_extract_info, live_url, False)
+                    probe_info = await loop.run_in_executor(None, safe_extract_info, active_url, False)
                     is_live = probe_info.get("is_live") or probe_info.get("live_status") == "is_live"
                     if not is_live:
-                        self._log(f"🛑 Stream '{stream_title}' ({live_url}) has concluded! Auto-switching to International Gaming Stream to eliminate copyright strikes...")
-                        int_stream = await loop.run_in_executor(None, self.discover_international_gaming_stream)
-                        if int_stream:
-                            live_url = int_stream["url"]
-                            stream_title = int_stream["title"]
-                            broadcaster = int_stream["uploader"]
-                            credits_name = broadcaster
-                            channel_handle = f"@{broadcaster.replace(' ', '')}"
-                            tags_to_use = ["#gta6", "#gtavi", "#gaming", "#shorts", "#reels", "#viral", "#gameplay"]
-                            self._log(f"🎯 Switched to International Gaming Stream: '{stream_title}' by {broadcaster} ({live_url})")
-                            await asyncio.sleep(5)
-                            continue
+                        self._log(f"🛑 Stream for {active_creator} ({active_url}) is offline! Checking alternate stream in rotation...")
+                        alt_target = targets[(cycle + 1) % len(targets)]
+                        alt_probe = await loop.run_in_executor(None, safe_extract_info, alt_target["url"], False)
+                        if alt_probe.get("is_live") or alt_probe.get("live_status") == "is_live":
+                            self._log(f"🎯 Switched to live alternate target: {alt_target['credits_name']} ({alt_target['url']})")
+                            active_target = alt_target
+                            active_url = active_target["url"]
+                            active_creator = active_target.get("credits_name", "Creator")
+                            active_handle = active_target.get("channel_handle", "@Creator")
+                            active_tags = active_target.get("tags", tags_to_use)
+                            stream_title = active_target.get("stream_title", f"{active_creator} Live")
+                            broadcaster = active_creator
                         else:
-                            self._log("No international streams found immediately. Waiting 45s before retrying search...")
-                            await asyncio.sleep(45)
-                            continue
+                            self._log("All primary streams offline! Auto-switching to International Gaming Stream to maintain continuous output...")
+                            int_stream = await loop.run_in_executor(None, self.discover_international_gaming_stream)
+                            if int_stream:
+                                active_url = int_stream["url"]
+                                stream_title = int_stream["title"]
+                                broadcaster = int_stream["uploader"]
+                                active_creator = broadcaster
+                                active_handle = f"@{broadcaster.replace(' ', '')}"
+                                active_tags = ["#gta6", "#gtavi", "#gaming", "#shorts", "#reels", "#viral", "#gameplay"]
+                                self._log(f"🎯 Switched to International Gaming Stream: '{stream_title}' by {broadcaster} ({active_url})")
+                            else:
+                                self._log("No international streams found immediately. Waiting 45s before retrying search...")
+                                await asyncio.sleep(45)
+                                continue
                 except Exception as pe:
                     self._log(f"Live status check note: {pe}")
 
                 cycle += 1
-                self._log(f"=== [CYCLE #{cycle}] Capturing {slice_duration}s rolling slice from stream ===")
-                self.current_state["step"] = f"Cycle #{cycle}: Recording {slice_duration}s slice from live broadcast"
-                await state_manager.set_status(AssistantState.EXECUTING, f"Cycle #{cycle}: Capturing live stream slice ({slice_duration}s)...")
+                self._log(f"=== [CYCLE #{cycle}] [{active_creator}] Capturing {slice_duration}s rolling slice from stream ===")
+                self.current_state["step"] = f"Cycle #{cycle} [{active_creator}]: Recording {slice_duration}s slice from live broadcast"
+                await state_manager.set_status(AssistantState.EXECUTING, f"Cycle #{cycle} [{active_creator}]: Capturing live stream slice ({slice_duration}s)...")
 
                 try:
-                    capture_meta = await loop.run_in_executor(None, self.capture_live_slice, live_url, slice_duration)
+                    capture_meta = await loop.run_in_executor(None, self.capture_live_slice, active_url, slice_duration)
                     slice_path = capture_meta["file_path"]
                     stream_title = capture_meta.get("title", stream_title)
                     broadcaster = capture_meta.get("uploader", broadcaster)
                     capture_failures = 0
                 except Exception as ce:
                     capture_failures += 1
-                    self._log(f"Failed to record live slice in cycle #{cycle}: {ce}.")
+                    self._log(f"Failed to record live slice for {active_creator} in cycle #{cycle}: {ce}.")
                     if capture_failures >= 2:
-                        self._log("Multiple stream capture failures. Checking if stream has ended & failing over to International stream...")
-                        int_stream = await loop.run_in_executor(None, self.discover_international_gaming_stream)
-                        if int_stream:
-                            live_url = int_stream["url"]
-                            stream_title = int_stream["title"]
-                            broadcaster = int_stream["uploader"]
-                            credits_name = broadcaster
-                            channel_handle = f"@{broadcaster.replace(' ', '')}"
-                            capture_failures = 0
-                            continue
-                    self._log("Retrying slice in 15s...")
+                        self._log(f"Multiple stream capture failures on {active_creator}. Alternating to next target...")
+                    self._log("Retrying next stream slice in 15s...")
                     await asyncio.sleep(15)
                     continue
 
@@ -517,13 +561,13 @@ class LivestreamClipperManager:
                 # 3. Format enhanced captions, credits and upload both clips
                 for clip_idx, clip in enumerate(clips, 1):
                     short_path = clip.get("output_path") or clip.get("video_path")
-                    raw_title = clip.get("title") or f"{credits_name} Insane Gaming Moment #{clip_idx}"
-                    clean_title = re.sub(r"#(shorts|reels|gta6|gaming|carryminati)", "", raw_title, flags=re.IGNORECASE).strip()
+                    raw_title = clip.get("title") or f"{active_creator} Insane Gaming Moment #{clip_idx}"
+                    clean_title = re.sub(r"#(shorts|reels|gta6|gaming|carryminati|ishowspeed|speed)", "", raw_title, flags=re.IGNORECASE).strip()
                     clean_title = re.sub(r"[\U00010000-\U0010ffff]", "", clean_title).strip()
                     if not clean_title:
-                        clean_title = f"{credits_name} Insane Clutch"
+                        clean_title = f"{active_creator} Insane Clutch"
 
-                    streamer_tag = f"#{credits_name.replace(' ', '')}"
+                    streamer_tag = f"#{active_creator.replace(' ', '')}"
                     if clip_idx == 1:
                         final_title = f"{clean_title[:45]} 🤯 #GTA6 #Shorts"
                     else:
@@ -534,10 +578,10 @@ class LivestreamClipperManager:
                     # Rich, engaging YouTube description with clear hook, credits & viral tags
                     short_desc = (
                         f"⚡ {clip.get('caption', '')}\n\n"
-                        f"Can {credits_name} survive this insane moment? Watch till the end! 😱🔥\n\n"
+                        f"Can {active_creator} survive this insane moment? Watch till the end! 😱🔥\n\n"
                         f"🎮 Stream: {stream_title}\n"
-                        f"👑 Credits to {credits_name}: {broadcaster} ({channel_handle})\n"
-                        f"🔗 Original Stream: {live_url}\n\n"
+                        f"👑 Credits to {active_creator}: {broadcaster} ({active_handle})\n"
+                        f"🔗 Original Stream: {active_url}\n\n"
                         f"Subscribe for more epic gaming shorts & viral moments!\n\n"
                         f"#gta6 #gaming #shorts #viral #gtavi #trending {streamer_tag}"
                     )
@@ -559,7 +603,7 @@ class LivestreamClipperManager:
                             video_path=short_path,
                             title=final_title,
                             description=short_desc,
-                            tags=tags_to_use,
+                            tags=active_tags,
                             privacy="schedule",
                             schedule_time=sched_time_str,
                             schedule_date=sched_date_str
@@ -599,7 +643,7 @@ class LivestreamClipperManager:
                                 video_path=short_path,
                                 title=final_title,
                                 description=short_desc,
-                                tags=tags_to_use,
+                                tags=active_tags,
                                 scheduled_time=yt_target_dt.isoformat(),
                                 privacy="public"
                             )
@@ -620,8 +664,8 @@ class LivestreamClipperManager:
                             ig_caption = anti_ban_guard.generate_varied_caption(
                                 base_title=clean_title,
                                 broadcaster=broadcaster,
-                                credits_name=credits_name,
-                                stream_url=live_url,
+                                credits_name=active_creator,
+                                stream_url=active_url,
                                 platform="instagram"
                             )
 
@@ -629,9 +673,9 @@ class LivestreamClipperManager:
                                 video_path=short_path,
                                 caption=ig_caption,
                                 scheduled_time=ig_target_dt.isoformat(),
-                                tags=tags_to_use
+                                tags=active_tags
                             )
-                            self._log(f"📅 [Instagram Reach Scheduler] Queued Reel '{clean_title[:32]}' for {ig_target_dt.strftime('%I:%M %p')} (+{mins_away_ig}m) to maximize algorithmic distribution!")
+                            self._log(f"📅 [Instagram Reach Scheduler] Queued Reel ({active_creator}) '{clean_title[:32]}' for {ig_target_dt.strftime('%I:%M %p')} (+{mins_away_ig}m) to maximize algorithmic distribution!")
                             try:
                                 conn = get_db_connection()
                                 cur = conn.cursor()
