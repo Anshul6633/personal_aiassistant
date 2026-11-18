@@ -182,6 +182,63 @@ async def chat_with_jarvis(req: ChatRequest):
         }
 
 
+class AIConfigRequest(BaseModel):
+    groq_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+
+
+@app.get("/api/ai/config")
+async def get_ai_config():
+    """Retrieve current conversational AI configuration and active engine."""
+    from jarvis.backend.database.memory import memory_manager
+    from jarvis.backend.config.settings import settings
+    has_groq = bool(settings.GROQ_API_KEY or memory_manager.get_memory("groq_api_key"))
+    has_gemini = bool(settings.GEMINI_API_KEY or memory_manager.get_memory("gemini_api_key"))
+    has_openai = bool(settings.OPENAI_API_KEY or memory_manager.get_memory("openai_api_key"))
+    ollama_ok = await jarvis_buddy.check_ollama_health()
+
+    mode = "cloud_companion"
+    if has_groq:
+        mode = "groq_cloud (llama-3.3-70b)"
+    elif has_gemini:
+        mode = "gemini_cloud (gemini-1.5-flash)"
+    elif has_openai:
+        mode = "openai_cloud"
+    elif ollama_ok:
+        mode = "ollama_local (RTX GPU)"
+
+    return {
+        "active_mode": mode,
+        "ollama_connected": ollama_ok,
+        "has_groq_key": has_groq,
+        "has_gemini_key": has_gemini,
+        "has_openai_key": has_openai,
+        "recommendation": "For free cloud AI at college with laptop off, add a free GROQ_API_KEY or GEMINI_API_KEY."
+    }
+
+
+@app.post("/api/ai/config")
+async def update_ai_config(req: AIConfigRequest):
+    """Save user-provided free cloud AI keys to persistent SQLite memories."""
+    from jarvis.backend.database.memory import memory_manager
+    updated = []
+    if req.groq_api_key is not None:
+        memory_manager.set_memory("ai_keys", "groq_api_key", req.groq_api_key.strip())
+        updated.append("Groq API Key")
+    if req.gemini_api_key is not None:
+        memory_manager.set_memory("ai_keys", "gemini_api_key", req.gemini_api_key.strip())
+        updated.append("Gemini API Key")
+    if req.openai_api_key is not None:
+        memory_manager.set_memory("ai_keys", "openai_api_key", req.openai_api_key.strip())
+        updated.append("OpenAI API Key")
+
+    return {
+        "success": True,
+        "message": f"Successfully updated: {', '.join(updated) if updated else 'No keys updated'}"
+    }
+
+
 # --- Voice & Speech Recognition Endpoints ---
 
 @app.post("/api/voice/transcribe")

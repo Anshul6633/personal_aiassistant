@@ -90,7 +90,8 @@ chat_tests = [
     ("Prompt: 'clip a gta 6 video'", "clip a gta 6 video", ["gta 6", "sourcing", "autopilot", "viral", "directive accepted"]),
     ("Prompt: 'why'", "why", ["assist", "everything", "whole agent", "no limits", "clip"]),
     ("Prompt: 'how is my pc'", "how is my pc", ["cpu", "ram", "battery", "nominal", "diagnostics", "status"]),
-    ("Prompt: 'lock pc'", "lock pc", ["lock", "computer", "sir", "boss"])
+    ("Prompt: 'lock pc'", "lock pc", ["lock", "computer", "sir", "boss"]),
+    ("Prompt: 'I am at college, will this work?'", "I am at college, will this work?", ["boss", "college", "cloud", "smoothly", "laptop", "24/7"])
 ]
 
 for label, message, expected_keywords in chat_tests:

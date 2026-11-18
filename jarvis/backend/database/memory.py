@@ -20,6 +20,15 @@ class MemoryManager:
         conn.close()
         return [dict(r) for r in rows]
 
+    def get_memory(self, key: str) -> Optional[str]:
+        """Retrieve a specific memory item by key."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM memories WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        conn.close()
+        return row["value"] if row else None
+
     def set_memory(self, category: str, key: str, value: str, confidence: float = 1.0) -> bool:
         """Store or update a memory item."""
         conn = get_db_connection()

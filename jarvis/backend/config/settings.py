@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     FALLBACK_MODEL: str = os.getenv("FALLBACK_MODEL", "qwen2.5:1.5b")
     VISION_MODEL: str = os.getenv("VISION_MODEL", "qwen2.5-vl:3b")
     GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY", None)
+    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY", None)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", None)
     HEADLESS: bool = os.getenv("HEADLESS", "false").lower() == "true"
 
