@@ -353,7 +353,7 @@ class LivestreamClipperManager:
         credits_name: str = "CarryMinati",
         channel_handle: str = "@CarryisLive",
         sleep_between_cycles: int = 35,
-        crop_mode: str = "fill"
+        crop_mode: str = "split_cam"
     ) -> Dict[str, Any]:
         """Continuous live stream ingest, AI hook slicing, and YouTube Shorts auto-upload loop."""
         self.continuous_running = True
@@ -498,7 +498,7 @@ class LivestreamClipperManager:
 
                         ig_status = await instagram_browser.check_login_status()
                         if ig_status.get("logged_in"):
-                            can_post_ig, ig_reason, wait_sec = anti_ban_guard.can_post_instagram()
+                            can_post_ig, ig_reason, wait_sec = anti_ban_guard.can_post_instagram(enforce_rate_limits=False)
                             ig_caption = anti_ban_guard.generate_varied_caption(
                                 base_title=clean_title,
                                 broadcaster=broadcaster,
@@ -529,19 +529,9 @@ class LivestreamClipperManager:
                                 else:
                                     self._log(f"⚠️ [Instagram] Reel upload notice: {ig_res.get('error', 'Skipped')}")
                             else:
-                                # Anti-ban guard active: Schedule in Instagram queue so account is never banned
-                                self._log(f"🛡️ [Anti-Ban Guard] Instagram pacing active ({ig_reason}). Scheduling Reel for later.")
-                                schedule_delay = wait_sec if wait_sec and wait_sec > 60 else 900
-                                sched_time = (datetime.now() + timedelta(seconds=schedule_delay)).isoformat()
-                                scheduler_engine.schedule_instagram_reel(
-                                    video_path=short_path,
-                                    caption=ig_caption,
-                                    scheduled_time=sched_time,
-                                    tags=tags_to_use
-                                )
-                                self._log(f"📅 [Instagram] Reel queued safely for {sched_time[:19]}")
+                                self._log(f"🛡️ [Instagram Notice] {ig_reason}")
                         else:
-                            self._log("ℹ️ [Instagram] Session pending sign-in. Click 'Open Instagram Sign-In' once in Instagram tab to auto-publish Reels.")
+                            self._log("ℹ️ [Instagram] @clipperwithout sign-in pending. Complete verification in the opened Chrome window to auto-publish Reels!")
                     except Exception as ige:
                         # CRITICAL: Instagram issues NEVER disrupt YouTube uploads!
                         self._log(f"⚠️ [Instagram] Non-blocking notice: {ige}")

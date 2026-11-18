@@ -32,11 +32,12 @@ class AntiBanGuard:
         self._last_yt_post_time: Optional[float] = None
         self._ig_action_blocked_until: Optional[float] = None
 
-    def can_post_instagram(self) -> Tuple[bool, str, Optional[int]]:
+    def can_post_instagram(self, enforce_rate_limits: bool = False) -> Tuple[bool, str, Optional[int]]:
         """Determine if an Instagram Reel can safely be posted now.
 
-        Returns:
-            (allowed: bool, reason: str, wait_seconds_recommended: Optional[int])
+        Args:
+            enforce_rate_limits: If False (default for continuous streaming mode), allows
+                                 continuous posting without artificial delay or daily caps.
         """
         now = time.time()
 
@@ -44,6 +45,9 @@ class AntiBanGuard:
         if self._ig_action_blocked_until and now < self._ig_action_blocked_until:
             rem = int(self._ig_action_blocked_until - now)
             return False, f"Instagram safety cooldown active for another {rem // 60}m {rem % 60}s.", rem
+
+        if not enforce_rate_limits:
+            return True, "Continuous posting mode active (unrestricted)", None
 
         # Check interval since last post
         if self._last_ig_post_time:

@@ -24,7 +24,8 @@ from jarvis.backend.database.db import get_db_connection
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("JARVIS.InstagramLogin")
 
-PROFILE_DIR = WORKSPACE_ROOT / "jarvis" / "browser_profile"
+PROFILE_DIR = WORKSPACE_ROOT / "jarvis" / "browser_profile_instagram"
+PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def cleanup_profile_locks():
@@ -230,6 +231,6 @@ async def perform_stealth_login(username: str, password: str, max_wait_sec: int 
 
 if __name__ == "__main__":
     user = sys.argv[1] if len(sys.argv) > 1 else "clipperwithout"
-    pw = sys.argv[2] if len(sys.argv) > 2 else "akhatri@777"
+    pw = sys.argv[2] if len(sys.argv) > 2 else "Akhatri@777"
     res = asyncio.run(perform_stealth_login(user, pw))
     print("\nRESULT:", res)

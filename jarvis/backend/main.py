@@ -715,7 +715,7 @@ class ContinuousLivestreamRequest(BaseModel):
     tags: Optional[List[str]] = None
     credits_name: Optional[str] = "CarryMinati"
     channel_handle: Optional[str] = "@CarryisLive"
-    crop_mode: Optional[str] = "fill"
+    crop_mode: Optional[str] = "split_cam"
 
 
 @app.post("/api/livestream/continuous/start")

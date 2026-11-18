@@ -275,6 +275,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 "[0:v]scale=1080:-1[fg];"
                 "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]"
             )
+        elif crop_mode in ("split_cam", "gaming", "streamer_face", "facecam"):
+            # High-Impact Gaming Split: Streamer Facecam Top (40%) + Gameplay Action Bottom (60%)
+            # Stacks 1080x740 (Facecam) + 1080x1180 (Gameplay) into full 1080x1920 9:16 vertical canvas
+            filter_complex = (
+                "[0:v]crop=370:250:15:435,scale=1080:740[cam];"
+                "[0:v]crop=1300:1080:550:0,scale=1080:1180[game];"
+                "[cam][game]vstack[base]"
+            )
         else:
             # Full 9:16 edge-to-edge frame fill (NO background bars, 100% immersive)
             filter_complex = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[base]"
