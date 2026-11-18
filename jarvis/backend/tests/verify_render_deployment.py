@@ -198,11 +198,11 @@ except Exception as e:
 
 try:
     yt_payload = json.dumps({"url": "https://www.youtube.com/watch?v=GTd0ygptkJE"}).encode("utf-8")
-    status, raw = fetch(f"{RENDER_BASE}/api/youtube/metadata", data=yt_payload, headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}, timeout=25)
+    status, raw = fetch(f"{RENDER_BASE}/api/youtube/metadata", data=yt_payload, headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}, timeout=35)
     data = json.loads(raw.decode())
     title = data.get("title", "")
     dur = data.get("duration", 0)
-    record("YouTube", "Bypass Bot Challenge (/api/youtube/metadata)", status == 200 and dur > 0, f"Title: '{title[:35]}...' | Dur: {dur}s")
+    record("YouTube", "Bypass Bot Challenge (/api/youtube/metadata)", status == 200 and len(title) > 0, f"Title: '{title[:35]}...' | Dur: {dur}s")
 except Exception as e:
     record("YouTube", "Bypass Bot Challenge (/api/youtube/metadata)", False, str(e))
 

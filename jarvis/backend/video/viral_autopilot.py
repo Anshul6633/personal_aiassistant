@@ -113,24 +113,24 @@ class ViralAutopilotManager:
         if not entries:
             raise ValueError(f"No viral videos found on YouTube for query: {query}")
 
-            # Pick the best candidate: preferably between 3m and 45m duration
-            best = None
-            for e in entries:
-                dur = e.get("duration") or 0
-                if 120 <= dur <= 3600:
-                    best = e
-                    break
-            if not best:
-                best = entries[0]
+        # Pick the best candidate: preferably between 3m and 45m duration
+        best = None
+        for e in entries:
+            dur = e.get("duration") or 0
+            if 120 <= dur <= 3600:
+                best = e
+                break
+        if not best:
+            best = entries[0]
 
-            return {
-                "title": best.get("title"),
-                "url": best.get("url") or f"https://www.youtube.com/watch?v={best.get('id')}",
-                "id": best.get("id"),
-                "uploader": best.get("uploader", "YouTube Creator"),
-                "duration": best.get("duration", 0),
-                "view_count": best.get("view_count", 0)
-            }
+        return {
+            "title": best.get("title"),
+            "url": best.get("url") or f"https://www.youtube.com/watch?v={best.get('id')}",
+            "id": best.get("id"),
+            "uploader": best.get("uploader", "YouTube Creator"),
+            "duration": best.get("duration", 0),
+            "view_count": best.get("view_count", 0)
+        }
 
     async def run_autopilot(
         self,

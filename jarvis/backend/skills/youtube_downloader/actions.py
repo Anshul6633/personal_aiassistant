@@ -15,7 +15,7 @@ import yt_dlp
 from jarvis.backend.config.settings import OUTPUT_DIR, WORKSPACE_ROOT
 from jarvis.backend.core.state import state_manager, AssistantState
 
-from jarvis.backend.video.ytdlp_utils import safe_extract_info, get_ytdlp_download_opts
+from jarvis.backend.video.ytdlp_utils import safe_extract_info, get_ytdlp_download_opts, fetch_oembed_metadata
 
 logger = logging.getLogger("JARVIS.Skill.YouTubeDownloader")
 
@@ -30,17 +30,21 @@ def sanitize_filename(name: str) -> str:
 
 
 def extract_metadata(url: str) -> Dict[str, Any]:
-    """Inspect YouTube video metadata without downloading."""
-    info = safe_extract_info(url, download=False)
-    return {
-        "id": info.get("id"),
-        "title": info.get("title"),
-        "duration": info.get("duration", 0),
-        "uploader": info.get("uploader"),
-        "view_count": info.get("view_count"),
-        "thumbnail": info.get("thumbnail"),
-        "description": (info.get("description") or "")[:200]
-    }
+    """Inspect YouTube video metadata without downloading, falling back to oEmbed if bot-blocked."""
+    try:
+        info = safe_extract_info(url, download=False)
+        return {
+            "id": info.get("id"),
+            "title": info.get("title"),
+            "duration": info.get("duration", 0),
+            "uploader": info.get("uploader"),
+            "view_count": info.get("view_count"),
+            "thumbnail": info.get("thumbnail"),
+            "description": (info.get("description") or "")[:200]
+        }
+    except Exception as e:
+        logger.warning(f"Direct yt-dlp metadata extraction failed: {e}. Falling back to zero-fail oEmbed engine...")
+        return fetch_oembed_metadata(url)
 
 
 def download_youtube_video(
