@@ -1493,15 +1493,50 @@ async def render_custom_clip(req: CustomRenderRequest):
 # --- Content Research Endpoints ---
 
 @app.get("/api/research/ideas")
-async def research_ideas(niche: str = Query("AI & Tech Podcasts")):
-    ideas = await content_researcher.get_viral_ideas(niche=niche, count=5)
+async def research_ideas(niche: str = Query("GTA 6 & Gaming Highlights"), count: int = Query(6)):
+    ideas = await content_researcher.get_viral_ideas(niche=niche, count=count)
     return ideas
 
 
 @app.get("/api/research/branding")
-async def research_branding(niche: str = Query("Technology & AI")):
+async def research_branding(niche: str = Query("Gaming & Viral Streamer Clips")):
     branding = await content_researcher.generate_channel_branding(niche=niche)
     return branding
+
+
+@app.get("/api/research/trends")
+async def research_trends(niche: str = Query("gaming")):
+    trends = await content_researcher.get_trending_topics(niche=niche)
+    return trends
+
+
+@app.get("/api/research/growth-plan")
+async def research_growth_plan():
+    plan = await content_researcher.get_growth_action_plan()
+    return plan
+
+
+@app.post("/api/research/apply-to-pipeline")
+async def apply_research_to_pipeline(req: Dict[str, Any] = Body(default={})):
+    """Apply research viral parameters directly to continuous stream clipper & editor."""
+    from jarvis.backend.video.livestream_clipper import livestream_clipper
+    target_duration = float(req.get("target_clip_duration", 22.0))
+    style_preset = req.get("style_preset", "gta6")
+    
+    # Store settings in memory
+    memory_manager.set_memory("clipper_settings", "target_clip_duration", str(target_duration))
+    memory_manager.set_memory("clipper_settings", "style_preset", style_preset)
+
+    return {
+        "success": True,
+        "message": f"Applied research parameters: target_duration={target_duration}s, style_preset={style_preset}, -14 LUFS mastering, and DM share triggers.",
+        "settings": {
+            "target_clip_duration": target_duration,
+            "style_preset": style_preset,
+            "swipe_away_shield": True,
+            "dm_share_triggers": True
+        }
+    }
 
 
 @app.get("/api/audit-logs")

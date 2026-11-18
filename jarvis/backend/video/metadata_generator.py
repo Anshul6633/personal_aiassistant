@@ -113,7 +113,7 @@ def format_viral_shorts_title(raw_title: str) -> str:
     clean = clean.replace("_", " ")
 
     lower = clean.lower()
-    if any(k in lower for k in ["football", "soccer", "ronaldo", "messi", "goal", "mbappe"]):
+    if any(k in lower for k in ["football", "soccer", "ronaldo", "messi", "scored", "mbappe", "champions league"]):
         emojis = ["⚽🔥", "⚽⚡", "👑⚽", "🥶⚽", "🤯⚽", "🏆⚡"]
     elif any(k in lower for k in ["money", "rich", "million", "billion", "car", "supercar"]):
         emojis = ["💸🔥", "💰🤯", "🤑⚡", "🔥💸", "💎🚀"]
@@ -156,9 +156,17 @@ def generate_viral_instagram_caption(
         lines.append(summary.strip())
         lines.append("")
 
-    # 3. High-Conversion Engagement & Share trigger
-    lines.extend([
+    # 3. High-Conversion Engagement & Share trigger (Sends Per Reach Multiplier)
+    dm_prompts = [
         "🚀 Send this to a friend who always fails the mission! 💀",
+        "🚀 Send this to your friend who drives like this in GTA 💀🚗",
+        "Tag your duo who would choke this mission immediately 😂👇",
+        "Bro really thought he had 200 IQ in GTA 6 😭 W or L move? 👇",
+        "Send this to the group chat... this had me crying 😭💀",
+        "Unreal clutch from the stream! Rate this 1-10 below! 🔥🚀"
+    ]
+    lines.extend([
+        random.choice(dm_prompts),
         "👇 Drop a W or L in the comments!",
         "⚡ Follow @clipperwithout for daily viral gaming moments!"
     ])

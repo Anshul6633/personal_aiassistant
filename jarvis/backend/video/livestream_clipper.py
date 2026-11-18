@@ -504,24 +504,29 @@ class LivestreamClipperManager:
                 # 3. Format enhanced captions, credits and upload both clips
                 for clip_idx, clip in enumerate(clips, 1):
                     short_path = clip.get("output_path") or clip.get("video_path")
-                    raw_title = clip.get("title") or f"CarryMinati Insane GTA 6 Moment #{clip_idx}"
-                    clean_title = raw_title.replace("#Shorts", "").replace("#shorts", "").strip()
+                    raw_title = clip.get("title") or f"{credits_name} Insane Gaming Moment #{clip_idx}"
+                    clean_title = re.sub(r"#(shorts|reels|gta6|gaming|carryminati)", "", raw_title, flags=re.IGNORECASE).strip()
+                    clean_title = re.sub(r"[\U00010000-\U0010ffff]", "", clean_title).strip()
+                    if not clean_title:
+                        clean_title = f"{credits_name} Insane Clutch"
+
+                    streamer_tag = f"#{credits_name.replace(' ', '')}"
                     if clip_idx == 1:
                         final_title = f"{clean_title[:45]} 🤯 #GTA6 #Shorts"
                     else:
-                        final_title = f"{clean_title[:45]} 🔥 #CarryMinati #Shorts"
+                        final_title = f"{clean_title[:45]} 🔥 {streamer_tag} #Shorts"
                     if len(final_title) > 90:
                         final_title = final_title[:80] + "... #Shorts"
 
                     # Rich, engaging YouTube description with clear hook, credits & viral tags
                     short_desc = (
                         f"⚡ {clip.get('caption', '')}\n\n"
-                        f"Can CarryMinati survive this insane moment in GTA 6? Watch till the end! 😱🔥\n\n"
+                        f"Can {credits_name} survive this insane moment? Watch till the end! 😱🔥\n\n"
                         f"🎮 Stream: {stream_title}\n"
                         f"👑 Credits to {credits_name}: {broadcaster} ({channel_handle})\n"
                         f"🔗 Original Stream: {live_url}\n\n"
                         f"Subscribe for more epic gaming shorts & viral moments!\n\n"
-                        f"#gta6 #carrryminanti #carryminati #gaming #shorts #viral #carryislive #gtavi #trending"
+                        f"#gta6 #gaming #shorts #viral #gtavi #trending {streamer_tag}"
                     )
 
                     # 4. Schedule or Publish Short on YouTube Studio with Reach Pacing

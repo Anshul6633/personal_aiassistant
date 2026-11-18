@@ -714,9 +714,28 @@ export const api = {
     return res.json();
   },
 
-  async getViralIdeas(niche?: string): Promise<any[]> {
-    const q = niche ? `?niche=${encodeURIComponent(niche)}` : '';
+  async getViralIdeas(niche?: string, count: number = 6): Promise<any[]> {
+    const q = niche ? `?niche=${encodeURIComponent(niche)}&count=${count}` : `?count=${count}`;
     const res = await fetch(`/api/research/ideas${q}`);
+    return res.json();
+  },
+
+  async getResearchTrends(niche: string = 'gaming'): Promise<any> {
+    const res = await fetch(`/api/research/trends?niche=${encodeURIComponent(niche)}`);
+    return res.json();
+  },
+
+  async getGrowthPlan(): Promise<any> {
+    const res = await fetch('/api/research/growth-plan');
+    return res.json();
+  },
+
+  async applyResearchToPipeline(payload: any = {}): Promise<any> {
+    const res = await fetch('/api/research/apply-to-pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     return res.json();
   },
 
