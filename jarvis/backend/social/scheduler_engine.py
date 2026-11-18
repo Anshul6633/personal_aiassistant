@@ -509,12 +509,12 @@ class YouTubeSchedulerEngine:
             conn.commit()
             logger.info(f"🎉 Queue Worker: Successfully published '{title}'! Live link: {yt_url}")
 
-            # 4. Clean up downloaded temp file if not a permanent local clip
-            if not is_local:
-                try:
-                    downloaded_path.unlink(missing_ok=True)
-                except Exception:
-                    pass
+            # 4. Clean up downloaded temp file or local clip if not needed by other platforms
+            try:
+                from jarvis.backend.video.storage_cleaner import storage_cleaner
+                storage_cleaner.cleanup_published_clip(str(downloaded_path))
+            except Exception:
+                pass
 
             return {"success": True, "youtube_url": yt_url, "title": title}
 
@@ -865,6 +865,14 @@ class YouTubeSchedulerEngine:
                     (now_iso, item_id)
                 )
                 conn.commit()
+
+                # Storage Guard: Auto-delete local video file and subtitles after successful publication
+                try:
+                    from jarvis.backend.video.storage_cleaner import storage_cleaner
+                    storage_cleaner.cleanup_published_clip(video_path)
+                except Exception as ce:
+                    logger.warning(f"Storage cleanup notice after IG publish: {ce}")
+
                 return {"success": True, "id": item_id}
             else:
                 err = res.get("error", "Unknown Instagram upload failure")
@@ -882,8 +890,10 @@ class YouTubeSchedulerEngine:
     async def run_worker_loop(self):
         """Continuous background worker that checks both YouTube and Instagram queues every 30 seconds."""
         logger.info("Autonomous Social Schedule Worker Loop started (YouTube & Instagram).")
+        loop_counter = 0
         while True:
             try:
+                loop_counter += 1
                 now_iso = datetime.now().isoformat()
                 conn = get_db_connection()
                 cursor = conn.cursor()
@@ -918,6 +928,14 @@ class YouTubeSchedulerEngine:
                     item = dict(ig_row)
                     logger.info(f"Queue Worker: Found due Instagram Reel: '{item['file_name']}' (scheduled: {item['scheduled_time']})")
                     await self.process_single_instagram_item(item)
+
+                # 3. Periodic Background Storage Maintenance Sweep (Every ~15 minutes)
+                if loop_counter % 30 == 0:
+                    try:
+                        from jarvis.backend.video.storage_cleaner import storage_cleaner
+                        storage_cleaner.run_full_storage_maintenance()
+                    except Exception as ce:
+                        logger.debug(f"Periodic storage cleanup error: {ce}")
 
             except Exception as e:
                 logger.error(f"Error in queue worker loop: {e}", exc_info=True)

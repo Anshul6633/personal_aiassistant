@@ -1539,6 +1539,14 @@ async def apply_research_to_pipeline(req: Dict[str, Any] = Body(default={})):
     }
 
 
+@app.post("/api/storage/cleanup")
+async def trigger_storage_cleanup():
+    """Trigger manual or scheduled storage purge for published clips and temp slices."""
+    from jarvis.backend.video.storage_cleaner import storage_cleaner
+    res = storage_cleaner.run_full_storage_maintenance()
+    return res
+
+
 @app.get("/api/audit-logs")
 async def get_audit_logs(limit: int = 50):
     conn = get_db_connection()

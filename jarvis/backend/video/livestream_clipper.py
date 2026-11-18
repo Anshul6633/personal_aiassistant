@@ -498,8 +498,21 @@ class LivestreamClipperManager:
 
                 if not clips:
                     self._log(f"No valid hooks extracted in cycle #{cycle}. Proceeding to next slice...")
+                    # Purge raw stream slice to save disk space
+                    try:
+                        from jarvis.backend.video.storage_cleaner import storage_cleaner
+                        storage_cleaner.cleanup_raw_slice(slice_path)
+                    except Exception:
+                        pass
                     await asyncio.sleep(sleep_between_cycles)
                     continue
+
+                # Auto-delete raw 180s live broadcast recording now that vertical clips are extracted & rendered
+                try:
+                    from jarvis.backend.video.storage_cleaner import storage_cleaner
+                    storage_cleaner.cleanup_raw_slice(slice_path)
+                except Exception as ce:
+                    logger.debug(f"Slice cleanup notice: {ce}")
 
                 # 3. Format enhanced captions, credits and upload both clips
                 for clip_idx, clip in enumerate(clips, 1):

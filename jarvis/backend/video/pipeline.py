@@ -137,6 +137,13 @@ class VideoPipeline:
                 await state_manager.set_status(AssistantState.EXECUTING, "Transcribing speech with faster-whisper (GPU/CPU)...")
                 await state_manager.update(task_progress=30)
                 transcript = await loop.run_in_executor(None, stt_engine.transcribe_file, wav_path)
+
+                # Clean up temporary demuxed whisper audio track immediately
+                try:
+                    from jarvis.backend.video.storage_cleaner import storage_cleaner
+                    storage_cleaner.cleanup_temp_audio(wav_path)
+                except Exception:
+                    pass
     
             # Save complete SRT/VTT for source video
             srt_path = str(SUBS_DIR / f"{Path(video_path).stem}_full.srt")
