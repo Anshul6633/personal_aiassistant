@@ -8,7 +8,6 @@ import time
 import subprocess
 import logging
 from typing import Dict, Any, Optional, List
-import pyautogui
 from jarvis.backend.security.permissions import security_guard
 from jarvis.backend.core.state import state_manager, AssistantState
 
