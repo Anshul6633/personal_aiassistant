@@ -72,17 +72,9 @@ def save_cookies_text(cookies_text: str) -> Path:
 def get_ytdlp_base_opts(
     download: bool = False,
     quiet: bool = True,
-    client_sequence: Optional[List[str]] = None,
-    player_skip: Optional[List[str]] = None
+    client_sequence: Optional[List[str]] = None
 ) -> Dict[str, Any]:
-    """Generate resilient yt-dlp options bypassing datacenter IP bot detection.
-    
-    Skipping the desktop webpage fetch ('player_skip': ['webpage', 'configs'])
-    and targeting mobile player APIs ('ios', 'android') avoids YouTube's
-    datacenter IP bot challenges.
-    """
-    clients = client_sequence or ["ios", "android", "tv_simply"]
-    skips = player_skip if player_skip is not None else ["webpage", "configs"]
+    """Generate clean, hardened yt-dlp options with Node.js runtime and cookie support."""
     node_path = shutil.which("node")
 
     opts: Dict[str, Any] = {
@@ -93,14 +85,15 @@ def get_ytdlp_base_opts(
         "http_headers": {
             "User-Agent": DEFAULT_USER_AGENT,
             "Accept-Language": "en-US,en;q=0.9",
-        },
-        "extractor_args": {
-            "youtube": {
-                "player_client": clients,
-                "player_skip": skips,
-            }
         }
     }
+
+    if client_sequence:
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": client_sequence
+            }
+        }
 
     if node_path:
         opts["js_runtimes"] = {"node": {"path": node_path}}
@@ -111,7 +104,6 @@ def get_ytdlp_base_opts(
         opts["cookiefile"] = str(cookie_file.resolve())
         logger.debug(f"yt-dlp using cookie file: {cookie_file}")
     elif not os.getenv("HEADLESS") and os.name == "nt":
-        # Local Windows workstation: Chrome profile cookie support
         browser_profile = WORKSPACE_ROOT / "jarvis" / "browser_profile"
         if browser_profile.exists() and (browser_profile / "Default").exists():
             opts["cookiesfrombrowser"] = ("chrome", str(browser_profile.resolve()), None, None)
@@ -187,45 +179,45 @@ def safe_extract_info(
     extra_opts: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Extract metadata or download with automatic fallback cascades if bot-challenged."""
-    # Cascading strategies:
-    # 1. Pure Mobile API (iOS + Android) skipping webpage - 100% resilient on datacenter IPs
-    # 2. TV Simply + iOS
-    # 3. Android standalone
-    # 4. Standard default
-    strategies: List[Tuple[List[str], List[str]]] = [
-        (["ios", "android"], ["webpage", "configs"]),
-        (["tv_simply", "ios"], ["webpage"]),
-        (["android"], ["webpage", "configs"]),
-        (["default"], [])
-    ]
+    base_opts = get_ytdlp_base_opts(download=download, quiet=True)
+    if extra_opts:
+        base_opts.update(extra_opts)
 
-    last_error = None
-    for clients, skips in strategies:
-        attempt_opts = get_ytdlp_base_opts(
-            download=download,
-            quiet=True,
-            client_sequence=clients,
-            player_skip=skips
-        )
-        if extra_opts:
-            attempt_opts.update(extra_opts)
+    try:
+        with yt_dlp.YoutubeDL(base_opts) as ydl:
+            return ydl.extract_info(url_or_query, download=download)
+    except Exception as e:
+        err_str = str(e).lower()
+        logger.warning(f"Standard yt-dlp extraction note: {e}")
 
-        try:
-            with yt_dlp.YoutubeDL(attempt_opts) as ydl:
-                return ydl.extract_info(url_or_query, download=download)
-        except Exception as e:
-            last_error = e
-            err_str = str(e).lower()
+        # If locked by browser sqlite, strip cookiesfrombrowser and retry
+        if ("cookie" in err_str or "sqlite" in err_str) and "cookiesfrombrowser" in base_opts:
+            try:
+                nobrowser_opts = dict(base_opts)
+                nobrowser_opts.pop("cookiesfrombrowser", None)
+                with yt_dlp.YoutubeDL(nobrowser_opts) as ydl_nb:
+                    return ydl_nb.extract_info(url_or_query, download=download)
+            except Exception as ex2:
+                logger.warning(f"Fallback without browser cookies: {ex2}")
 
-            # If it's a cookie sqlite lock issue on desktop, strip cookiesfrombrowser and retry
-            if ("cookie" in err_str or "sqlite" in err_str) and "cookiesfrombrowser" in attempt_opts:
-                try:
-                    attempt_opts.pop("cookiesfrombrowser", None)
-                    with yt_dlp.YoutubeDL(attempt_opts) as ydl_nobrowser:
-                        return ydl_nobrowser.extract_info(url_or_query, download=download)
-                except Exception as ex2:
-                    last_error = ex2
+        # If bot challenge or player error on cloud IP, retry with mobile/tv clients
+        fallback_clients = [
+            ["tv_simply", "ios", "mweb"],
+            ["ios", "android"]
+        ]
+        for clients in fallback_clients:
+            try:
+                attempt_opts = dict(base_opts)
+                attempt_opts["extractor_args"] = {"youtube": {"player_client": clients}}
+                attempt_opts.pop("cookiesfrombrowser", None)
+                with yt_dlp.YoutubeDL(attempt_opts) as ydl_fb:
+                    return ydl_fb.extract_info(url_or_query, download=download)
+            except Exception as fb_err:
+                logger.warning(f"Fallback client {clients} error: {fb_err}")
 
-            logger.warning(f"yt-dlp strategy {clients} encounter: {e}. Trying next client profile...")
+        # If all fail and not downloading, use oEmbed fallback
+        if not download and "http" in url_or_query:
+            logger.info("Engaging zero-fail oEmbed fallback engine...")
+            return fetch_oembed_metadata(url_or_query)
 
-    raise last_error or RuntimeError(f"Failed to extract info from {url_or_query}")
+        raise e
