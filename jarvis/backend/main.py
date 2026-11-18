@@ -706,6 +706,50 @@ async def discover_livestreams(topic: Optional[str] = "live stream", limit: int 
     return livestream_clipper.discover_live_streams(query=topic, limit=limit)
 
 
+class ContinuousLivestreamRequest(BaseModel):
+    url: str
+    slice_duration: Optional[int] = 180
+    num_clips: Optional[int] = 1
+    target_clip_duration: Optional[float] = 45.0
+    style_preset: Optional[str] = "flame"
+    tags: Optional[List[str]] = None
+    credits_name: Optional[str] = "CarryMinati"
+    channel_handle: Optional[str] = "@CarryisLive"
+
+
+@app.post("/api/livestream/continuous/start")
+async def start_continuous_livestream(req: ContinuousLivestreamRequest, background_tasks: BackgroundTasks):
+    """Start continuous autonomous clipping and YouTube Shorts auto-uploading on a live stream."""
+    from jarvis.backend.video.livestream_clipper import livestream_clipper
+    if livestream_clipper.continuous_running:
+        return {"success": False, "message": "Continuous live stream clipping is already active!"}
+
+    background_tasks.add_task(
+        livestream_clipper.run_continuous_pipeline,
+        live_url=req.url,
+        slice_duration=req.slice_duration or 180,
+        num_clips=req.num_clips or 1,
+        target_clip_duration=req.target_clip_duration or 45.0,
+        style_preset=req.style_preset or "flame",
+        custom_tags=req.tags,
+        credits_name=req.credits_name or "CarryMinati",
+        channel_handle=req.channel_handle or "@CarryisLive"
+    )
+    return {
+        "status": "CONTINUOUS_CLIPPING_STARTED",
+        "message": f"Continuous clipping loop engaged for {req.url}!",
+        "target": req.url
+    }
+
+
+@app.post("/api/livestream/continuous/stop")
+async def stop_continuous_livestream():
+    """Stop active continuous live stream clipping loop."""
+    from jarvis.backend.video.livestream_clipper import livestream_clipper
+    livestream_clipper.stop_continuous_pipeline()
+    return {"status": "STOPPING", "message": "Signal sent to stop continuous clipping after current cycle."}
+
+
 # --- Desktop Control & Screen Endpoints ---
 
 @app.get("/api/screen/preview")

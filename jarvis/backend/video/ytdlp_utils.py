@@ -105,8 +105,18 @@ def get_ytdlp_base_opts(
         logger.debug(f"yt-dlp using cookie file: {cookie_file}")
     elif not os.getenv("HEADLESS") and os.name == "nt":
         browser_profile = WORKSPACE_ROOT / "jarvis" / "browser_profile"
-        if browser_profile.exists() and (browser_profile / "Default").exists():
-            opts["cookiesfrombrowser"] = ("chrome", str(browser_profile.resolve()), None, None)
+        cookies_db = browser_profile / "Default" / "Network" / "Cookies"
+        if not cookies_db.exists():
+            cookies_db = browser_profile / "Default" / "Cookies"
+        if cookies_db.exists():
+            try:
+                # Test if SQLite file is unlocked before letting yt-dlp copy it
+                with open(cookies_db, "rb") as f:
+                    pass
+                opts["cookiesfrombrowser"] = ("chrome", str(browser_profile.resolve()), None, None)
+            except Exception:
+                # Chrome process currently holding lock, skip to avoid stderr noise
+                pass
 
     return opts
 

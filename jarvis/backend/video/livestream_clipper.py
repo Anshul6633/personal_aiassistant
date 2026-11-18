@@ -40,6 +40,7 @@ DEFAULT_LIVE_TOPICS = [
 class LivestreamClipperManager:
     def __init__(self):
         self.is_running = False
+        self.continuous_running = False
         self.ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
         self.current_state: Dict[str, Any] = {
             "status": "IDLE",
@@ -335,6 +336,168 @@ class LivestreamClipperManager:
 
         finally:
             self.is_running = False
+
+    def stop_continuous_pipeline(self):
+        """Signal the continuous streaming pipeline to stop gracefully."""
+        self.continuous_running = False
+        self._log("Stopping continuous livestream pipeline...")
+
+    async def run_continuous_pipeline(
+        self,
+        live_url: str,
+        slice_duration: int = 180,
+        num_clips: int = 1,
+        target_clip_duration: float = 45.0,
+        style_preset: str = "flame",
+        custom_tags: Optional[List[str]] = None,
+        credits_name: str = "CarryMinati",
+        channel_handle: str = "@CarryisLive",
+        sleep_between_cycles: int = 35
+    ) -> Dict[str, Any]:
+        """Continuous live stream ingest, AI hook slicing, and YouTube Shorts auto-upload loop."""
+        self.continuous_running = True
+        self.is_running = True
+        self.current_state["status"] = "STREAMING_CONTINUOUS"
+        self.current_state["step"] = f"Continuous clipping active for {live_url}"
+        self.current_state["clips_uploaded"] = []
+
+        cycle = 0
+        loop = asyncio.get_event_loop()
+        from jarvis.backend.video.ytdlp_utils import safe_extract_info
+        from jarvis.backend.social.youtube_browser import youtube_browser
+        from jarvis.backend.social.scheduler_engine import scheduler_engine
+        from jarvis.backend.database.db import get_db_connection
+
+        default_tags = ["gta6", "carrryminanti", "carryminati", "CarryisLive", "GTA 6", "Gaming", "Shorts", "Viral", "Trending"]
+        tags_to_use = custom_tags or default_tags
+
+        self._log(f"🔥 Starting continuous live stream clipping loop on {live_url}...")
+        self._log(f"Tags: {tags_to_use}")
+
+        try:
+            while self.continuous_running:
+                # 1. Probe if stream is still alive
+                try:
+                    probe_info = await loop.run_in_executor(None, safe_extract_info, live_url, False)
+                    is_live = probe_info.get("is_live") or probe_info.get("live_status") == "is_live"
+                    if not is_live:
+                        self._log(f"Stream {live_url} is no longer live. Concluding continuous pipeline!")
+                        break
+                except Exception as pe:
+                    self._log(f"Live status check note: {pe}")
+
+                cycle += 1
+                self._log(f"=== [CYCLE #{cycle}] Capturing {slice_duration}s rolling slice from stream ===")
+                self.current_state["step"] = f"Cycle #{cycle}: Recording {slice_duration}s slice from live broadcast"
+                await state_manager.set_status(AssistantState.EXECUTING, f"Cycle #{cycle}: Capturing live stream slice ({slice_duration}s)...")
+
+                try:
+                    capture_meta = await loop.run_in_executor(None, self.capture_live_slice, live_url, slice_duration)
+                    slice_path = capture_meta["file_path"]
+                    stream_title = capture_meta.get("title", "CARRYMINATI PLAYS GTA VI")
+                    broadcaster = capture_meta.get("uploader", "CarryisLive")
+                except Exception as ce:
+                    self._log(f"Failed to record live slice in cycle #{cycle}: {ce}. Retrying in 15s...")
+                    await asyncio.sleep(15)
+                    continue
+
+                # 2. Transcribe & extract high-hook candidate windows
+                self.current_state["step"] = f"Cycle #{cycle}: Transcribing & detecting viral hooks"
+                await state_manager.set_status(AssistantState.EXECUTING, f"Cycle #{cycle}: Transcribing audio & scoring hooks...")
+                try:
+                    clips = await video_pipeline.process_video(
+                        video_path=slice_path,
+                        num_clips=num_clips,
+                        target_duration=target_clip_duration,
+                        style_preset=style_preset,
+                        auto_publish_youtube=False
+                    )
+                except Exception as pe:
+                    self._log(f"Error in clipping pipeline for cycle #{cycle}: {pe}")
+                    clips = []
+
+                if not clips:
+                    self._log(f"No valid hooks extracted in cycle #{cycle}. Proceeding to next slice...")
+                    await asyncio.sleep(sleep_between_cycles)
+                    continue
+
+                # 3. Format metadata with CarryMinati credits and #gta6 #carrryminanti tags
+                for clip in clips:
+                    short_path = clip.get("output_path") or clip.get("video_path")
+                    raw_title = clip.get("title") or "CarryMinati Insane GTA 6 Moment"
+                    # Format punchy YouTube Shorts title
+                    if "#gta6" not in raw_title.lower():
+                        clean_title = raw_title.replace("#Shorts", "").replace("#shorts", "").strip()
+                        final_title = f"{clean_title[:45]} 🤯 #GTA6 #Shorts"
+                    else:
+                        final_title = raw_title
+                    if len(final_title) > 90:
+                        final_title = final_title[:80] + "... #Shorts"
+
+                    short_desc = (
+                        f"{clip.get('caption', '')}\n\n"
+                        f"🎮 Stream: {stream_title}\n"
+                        f"👑 Credits to {credits_name}: {broadcaster} ({channel_handle})\n"
+                        f"🔗 Original Stream: {live_url}\n\n"
+                        f"#gta6 #carrryminanti #carryminati #gaming #shorts #viral #carryislive #gtavi"
+                    )
+
+                    # 4. Upload immediately to YouTube Studio via Playwright
+                    self._log(f"🚀 [CYCLE #{cycle}] Uploading Short to YouTube Studio: '{final_title}'...")
+                    self.current_state["step"] = f"Cycle #{cycle}: Uploading Short to YouTube Studio via Playwright"
+                    await state_manager.set_status(AssistantState.EXECUTING, f"Publishing '{final_title[:30]}...' to YouTube Studio...")
+
+                    scheduler_engine.pause_queue()
+                    try:
+                        upload_res = await youtube_browser.upload_video(
+                            video_path=short_path,
+                            title=final_title,
+                            description=short_desc,
+                            tags=tags_to_use,
+                            privacy="public"
+                        )
+                        published_url = upload_res.get("video_url") or "PUBLISHED_STUDIO"
+                        self._log(f"✅ [CYCLE #{cycle}] Published to YouTube Studio successfully! URL: {published_url}")
+                        self.current_state["clips_uploaded"].append({
+                            "cycle": cycle,
+                            "title": final_title,
+                            "video_path": short_path,
+                            "url": published_url,
+                            "timestamp": datetime.now().isoformat()
+                        })
+
+                        # Record in database
+                        try:
+                            conn = get_db_connection()
+                            cur = conn.cursor()
+                            cur.execute(
+                                "UPDATE clips SET status = 'PUBLISHED', published_youtube = ? WHERE output_path = ?",
+                                (published_url, short_path)
+                            )
+                            conn.commit()
+                            conn.close()
+                        except Exception as de:
+                            logger.warning(f"Could not record published status in DB: {de}")
+
+                    except Exception as ue:
+                        self._log(f"⚠️ YouTube Studio upload warning in cycle #{cycle}: {ue}")
+                    finally:
+                        scheduler_engine.resume_queue()
+
+                self._log(f"Sleeping {sleep_between_cycles}s before capturing next live slice...")
+                await asyncio.sleep(sleep_between_cycles)
+
+        except asyncio.CancelledError:
+            self._log("Continuous pipeline cancelled.")
+        except Exception as e:
+            self._log(f"Continuous pipeline encountered error: {e}")
+        finally:
+            self.continuous_running = False
+            self.is_running = False
+            self.current_state["status"] = "IDLE"
+            self.current_state["step"] = "Continuous stream clipping finished."
+            await state_manager.set_status(AssistantState.IDLE, "Continuous livestream clipping loop completed.")
+            return {"success": True, "total_cycles": cycle, "uploaded": self.current_state.get("clips_uploaded", [])}
 
 
 livestream_clipper = LivestreamClipperManager()
