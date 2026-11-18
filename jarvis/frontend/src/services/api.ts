@@ -331,6 +331,22 @@ export const api = {
     return res.json();
   },
 
+  async clearOldClips(keepRecent: number = 30): Promise<any> {
+    const res = await fetch('/api/clips/clear-old', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keep_recent: keepRecent }),
+    });
+    return res.json();
+  },
+
+  async deleteClip(clipId: string): Promise<any> {
+    const res = await fetch(`/api/clips/${clipId}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
   async generateClips(
     videoPath: string,
     numClips = 3,

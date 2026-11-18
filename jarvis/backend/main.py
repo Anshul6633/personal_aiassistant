@@ -422,6 +422,25 @@ async def list_clips():
     return clips
 
 
+@app.post("/api/clips/clear-old")
+async def clear_old_clips(req: Dict[str, Any] = Body(default={})):
+    """Purge oldest unqueued clips from Content Studio and disk to free storage."""
+    from jarvis.backend.video.storage_cleaner import storage_cleaner
+    keep_recent = int(req.get("keep_recent", 30))
+    res = storage_cleaner.clear_old_studio_clips(keep_recent=keep_recent)
+    return res
+
+
+@app.delete("/api/clips/{clip_id}")
+async def delete_clip(clip_id: str):
+    """Delete an individual clip and its media files."""
+    from jarvis.backend.video.storage_cleaner import storage_cleaner
+    res = storage_cleaner.delete_single_clip(clip_id=clip_id)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Failed to delete clip"))
+    return res
+
+
 class ClipGenerateRequest(BaseModel):
     video_path: str
     num_clips: Optional[int] = 3

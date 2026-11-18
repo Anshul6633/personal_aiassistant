@@ -25,7 +25,8 @@ import {
   Terminal,
   Wrench,
   Palette,
-  Type
+  Type,
+  Trash2
 } from 'lucide-react';
 import { ClipItem, CaptionStyle, api } from '../services/api';
 
@@ -1578,6 +1579,30 @@ export const ContentStudio: React.FC<ContentStudioProps> = ({ clips, onRefreshCl
                     <Camera className="w-4 h-4" />
                     <span>Queue for Instagram Reels</span>
                   </button>
+
+                  <button
+                    onClick={async () => {
+                      if (window.confirm(`Delete clip "${selectedClip.title}" from storage?`)) {
+                        try {
+                          const res = await api.deleteClip(selectedClip.id);
+                          if (res.success) {
+                            showNotice(`Deleted clip and freed ${res.freed_mb} MB!`);
+                            setSelectedClip(null);
+                            onRefreshClips();
+                          } else {
+                            showNotice(res.error || 'Failed to delete clip.');
+                          }
+                        } catch (e: any) {
+                          showNotice(`Delete error: ${e.message}`);
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/40 text-xs font-mono text-rose-300 flex items-center gap-2 cursor-pointer transition-colors"
+                    title="Delete clip from storage"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                    <span>Delete Clip</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -1605,6 +1630,26 @@ export const ContentStudio: React.FC<ContentStudioProps> = ({ clips, onRefreshCl
             >
               All ({clips.length})
             </button>
+            {clips.length > 25 && (
+              <button
+                onClick={async () => {
+                  if (window.confirm(`Clean oldest clips to free storage? (Keeps latest 25 clips & protects active scheduled queues)`)) {
+                    try {
+                      const res = await api.clearOldClips(25);
+                      showNotice(`Purged ${res.deleted_count} oldest clips (${res.freed_mb} MB freed)!`);
+                      onRefreshClips();
+                    } catch (e: any) {
+                      showNotice(`Error cleaning clips: ${e.message}`);
+                    }
+                  }
+                }}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                title="Purge oldest clips from storage (keeps active queues safe)"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Clean Oldest</span>
+              </button>
+            )}
             {clips.some((c) => c.source_file?.includes('Beat')) && (
               <button
                 onClick={() => setClipFilter('Beat')}

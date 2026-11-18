@@ -198,5 +198,104 @@ class StorageCleaner:
             "deleted_files": deleted_files[:20]
         }
 
+    @classmethod
+    def clear_old_studio_clips(cls, keep_recent: int = 30) -> Dict[str, Any]:
+        """Purge old clips from Content Studio and disk, based on oldest created_at.
+        
+        Strictly protects any clip whose file is currently queued or uploading
+        in instagram_schedule_queue or youtube_schedule_queue.
+        """
+        protected = cls.get_protected_filenames()
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT id, created_at, status, output_path, thumbnail_path, title FROM clips ORDER BY created_at ASC")
+        all_clips = cur.fetchall()
+
+        non_protected = []
+        for r in all_clips:
+            out_path = r[3]
+            fname = Path(out_path).name if out_path else ""
+            if fname not in protected:
+                non_protected.append(r)
+
+        if keep_recent > 0 and len(non_protected) > keep_recent:
+            to_delete = non_protected[:-keep_recent]
+        elif keep_recent == 0:
+            to_delete = non_protected
+        else:
+            to_delete = []
+
+        freed_bytes = 0
+        deleted_ids = []
+
+        for r in to_delete:
+            cid, ctime, cstatus, out_path, thumb_path, title = r
+            if out_path:
+                p = Path(out_path)
+                freed_bytes += cls.delete_file_safely(p)
+                sub = SUBTITLES_DIR / f"{p.stem}.ass"
+                cls.delete_file_safely(sub)
+                srt = SUBTITLES_DIR / f"{p.stem}.srt"
+                cls.delete_file_safely(srt)
+
+            if thumb_path:
+                cls.delete_file_safely(Path(thumb_path))
+
+            deleted_ids.append(cid)
+
+        if deleted_ids:
+            cur.executemany("DELETE FROM clips WHERE id = ?", [(x,) for x in deleted_ids])
+            conn.commit()
+
+        cur.execute("SELECT COUNT(*) FROM clips")
+        remaining = cur.fetchone()[0]
+        conn.close()
+
+        freed_mb = round(freed_bytes / (1024 * 1024), 2)
+        logger.info(f"🧹 Content Studio Cleaned: Removed {len(deleted_ids)} oldest clips ({freed_mb} MB freed). Remaining: {remaining}")
+        return {
+            "success": True,
+            "deleted_count": len(deleted_ids),
+            "freed_mb": freed_mb,
+            "remaining_count": remaining
+        }
+
+    @classmethod
+    def delete_single_clip(cls, clip_id: str) -> Dict[str, Any]:
+        """Delete an individual clip from Content Studio and disk."""
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, output_path, thumbnail_path FROM clips WHERE id = ?", (clip_id,))
+        row = cur.fetchone()
+
+        if not row:
+            conn.close()
+            return {"success": False, "error": "Clip not found"}
+
+        out_path, thumb_path = row[1], row[2]
+        protected = cls.get_protected_filenames()
+        fname = Path(out_path).name if out_path else ""
+
+        if fname in protected:
+            conn.close()
+            return {"success": False, "error": f"Clip '{fname}' is currently queued for publication and cannot be deleted."}
+
+        freed = 0
+        if out_path:
+            p = Path(out_path)
+            freed += cls.delete_file_safely(p)
+            sub = SUBTITLES_DIR / f"{p.stem}.ass"
+            cls.delete_file_safely(sub)
+
+        if thumb_path:
+            cls.delete_file_safely(Path(thumb_path))
+
+        cur.execute("DELETE FROM clips WHERE id = ?", (clip_id,))
+        conn.commit()
+        conn.close()
+
+        return {"success": True, "deleted_id": clip_id, "freed_mb": round(freed / (1024 * 1024), 2)}
+
 
 storage_cleaner = StorageCleaner()
