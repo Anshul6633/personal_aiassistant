@@ -28,15 +28,33 @@ EMPHASIS_KEYWORDS = {
     "secret", "mistake", "never", "always", "truth", "why", "stop", "ai",
     "money", "billion", "million", "crazy", "huge", "biggest", "rule",
     "future", "power", "warning", "free", "danger", "lesson", "win", "lose",
-    # Gaming & Hindi Viral Triggers
+    # Gaming, GTA 6 & Hindi Viral Triggers
     "gta", "gta6", "carry", "carryminati", "bhai", "yaar", "kya", "dekho",
     "kill", "police", "gun", "car", "headshot", "noob", "pro", "hack",
     "insane", "omg", "lol", "op", "epic", "bhaiya", "legend", "ps5", "game",
-    "crore", "lakh", "loot", "dead", "fight", "escape", "run"
+    "crore", "lakh", "loot", "dead", "fight", "escape", "run", "vice", "city",
+    "wanted", "heist", "wasted", "busted", "nitro", "drift", "speed", "stars"
 }
 
 # The Visual Subtitle Presets (Format: Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, MarginV)
 STYLE_PRESETS = {
+    "gta6": {
+        "name": "GTA VI Vice Neon",
+        "tag": "GTA VI Official",
+        "font": "Impact",
+        "size": 84,
+        "primary": "&H00FFFFFF",  # Crisp Diamond White for 100% video legibility
+        "secondary": "&H00FFF500", # Vice City Ocean Teal (&H00FFF500 = #00F5FF)
+        "outline_col": "&H00180220", # Deep Midnight Vice Obsidian Outline
+        "back_col": "&H90200525",  # Subtle Vice City Glow
+        "bold": -1,
+        "outline": 8,
+        "shadow": 4,
+        "margin_v": 540,
+        "highlight_col": "&H00852AFF",  # Iconic GTA VI Vice Neon Flamingo Pink (&H00852AFF = #FF2A85)
+        "sample": "VICE CITY 2026 // WANTED ★★★★★",
+        "desc": "Official GTA VI Vice City aesthetic: crisp high-voltage white with blazing Vice City flamingo pink & cyan keyword pops and deep midnight violet 8px stroke."
+    },
     "podcast": {
         "name": "Hormozi Viral Pop",
         "tag": "Trending",
@@ -191,7 +209,7 @@ class VideoEditor:
         crop_mode: Optional[str] = None
     ) -> str:
         """Generate styled Advanced SubStation Alpha (.ass) subtitles with keyword highlights and preset styling."""
-        preset = STYLE_PRESETS.get(style.lower(), STYLE_PRESETS["podcast"]).copy()
+        preset = STYLE_PRESETS.get(style.lower(), STYLE_PRESETS["gta6"]).copy()
 
         # Adapt subtitle vertical position dynamically based on layout structure
         margin_v = preset.get("margin_v", 540)
@@ -240,12 +258,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
             # Format words with keyword color override tags & energetic bounce animation
             chunk_tokens = []
-            for w in chunk:
+            for w_idx, w in enumerate(chunk):
                 raw_w = w["word"].strip()
                 clean_w = raw_w.lower().strip(".,!?:;\"'()[]")
                 if clean_w in EMPHASIS_KEYWORDS:
-                    # Apply luminous keyword highlight with bold emphasis
-                    chunk_tokens.append(f"{{\\c{highlight_color}&\\b1}}{raw_w.upper()}{{\\c{preset['primary']}&\\b{preset.get('bold', -1)}}}")
+                    # In GTA6 preset, alternate between Vice Flamingo Pink and Electric Cyan for true GTA VI neon styling
+                    if style.lower() in ("gta6", "gta_vi", "gta"):
+                        w_color = "&H00852AFF" if (i + w_idx) % 2 == 0 else "&H00FFF500"
+                    else:
+                        w_color = highlight_color
+                    chunk_tokens.append(f"{{\\c{w_color}&\\b1}}{raw_w.upper()}{{\\c{preset['primary']}&\\b{preset.get('bold', -1)}}}")
                 else:
                     chunk_tokens.append(raw_w.upper())
 

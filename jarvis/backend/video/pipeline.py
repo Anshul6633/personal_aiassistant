@@ -38,7 +38,7 @@ class VideoPipeline:
         num_clips: int = 5,
         target_duration: float = 45.0,
         task_id: Optional[str] = None,
-        style_preset: str = "podcast",
+        style_preset: str = "gta6",
         auto_publish_youtube: bool = False,
         publish_interval_minutes: int = 45,
         privacy: str = "schedule",
@@ -232,9 +232,11 @@ class VideoPipeline:
                 else:
                     clip_crop_mode = crop_mode
 
-                # Dynamic subtitle style rotation: flame -> mrbeast -> cyberpunk -> podcast
-                if style_preset in ("auto", "dynamic", "podcast", "flame"):
-                    styles = ["flame", "mrbeast", "cyberpunk", "podcast"]
+                # Subtitle style selection: if user specifies gta6, enforce gta6 on every clip!
+                if style_preset.lower() in ("gta6", "gta", "gta_vi"):
+                    clip_style_preset = "gta6"
+                elif style_preset in ("auto", "dynamic"):
+                    styles = ["gta6", "flame", "mrbeast", "cyberpunk"]
                     clip_style_preset = styles[global_clip_idx % len(styles)]
                 else:
                     clip_style_preset = style_preset

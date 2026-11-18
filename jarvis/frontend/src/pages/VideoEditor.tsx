@@ -1493,6 +1493,16 @@ export const VideoEditor: React.FC<VideoEditorProps> = ({ clips, onRefreshClips 
   // --- Subtitle & Text Presets ---
   const subtitlePresets = [
     {
+      id: 'gta6',
+      name: 'GTA VI Vice Neon',
+      font: 'Impact',
+      color: '#FFFFFF',
+      highlight: '#FF2A85',
+      outline: '#180220',
+      outlineWidth: 5,
+      bgColor: undefined,
+    },
+    {
       id: 'mrbeast',
       name: 'MrBeast Bouncing Yellow',
       font: 'Impact',
@@ -1679,6 +1689,16 @@ export const VideoEditor: React.FC<VideoEditorProps> = ({ clips, onRefreshClips 
       t = -25;
       tint = 30;
       v = 0.2;
+    } else if (preset === 'gta6') {
+      b = 0.04;
+      c = 1.38;
+      s = 1.65;
+      t = 15;
+      tint = 20;
+      lift = -0.05;
+      gamma = 1.08;
+      gain = 1.15;
+      v = 0.22;
     } else if (preset === 'cinematic') {
       b = -0.04;
       c = 1.25;
@@ -2586,6 +2606,17 @@ export const VideoEditor: React.FC<VideoEditorProps> = ({ clips, onRefreshClips 
                         >
                           <div className="font-bold text-cyan-300">Vibrant Pop</div>
                           <div className="text-[9px] text-slate-400 mt-0.5">+165% Saturation</div>
+                        </button>
+                        <button
+                          onClick={() => applyColorPreset('gta6')}
+                          className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                            activePreset === 'gta6'
+                              ? 'bg-pink-500/20 border-pink-400 text-pink-300 ring-1 ring-pink-400 font-bold'
+                              : 'bg-slate-900 border-slate-800 hover:border-pink-400 text-slate-200'
+                          }`}
+                        >
+                          <div className="font-bold text-pink-400">GTA VI Vice</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5">Golden hour & neon</div>
                         </button>
                         <button
                           onClick={() => applyColorPreset('cyberpunk')}

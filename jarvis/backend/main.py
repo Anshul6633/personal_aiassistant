@@ -711,7 +711,7 @@ class ContinuousLivestreamRequest(BaseModel):
     slice_duration: Optional[int] = 180
     num_clips: Optional[int] = 2
     target_clip_duration: Optional[float] = 45.0
-    style_preset: Optional[str] = "flame"
+    style_preset: Optional[str] = "gta6"
     tags: Optional[List[str]] = None
     credits_name: Optional[str] = "CarryMinati"
     channel_handle: Optional[str] = "@CarryisLive"
@@ -731,7 +731,7 @@ async def start_continuous_livestream(req: ContinuousLivestreamRequest, backgrou
         slice_duration=req.slice_duration or 180,
         num_clips=req.num_clips or 2,
         target_clip_duration=req.target_clip_duration or 45.0,
-        style_preset=req.style_preset or "flame",
+        style_preset=req.style_preset or "gta6",
         custom_tags=req.tags,
         credits_name=req.credits_name or "CarryMinati",
         channel_handle=req.channel_handle or "@CarryisLive",

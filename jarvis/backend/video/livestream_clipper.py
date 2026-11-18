@@ -178,7 +178,7 @@ class LivestreamClipperManager:
         duration_seconds: int = 60,
         num_clips: int = 2,
         target_clip_duration: float = 30.0,
-        style_preset: str = "podcast",
+        style_preset: str = "gta6",
         auto_upload_youtube: bool = False,
         visibility: str = "public"
     ) -> Dict[str, Any]:
@@ -350,7 +350,7 @@ class LivestreamClipperManager:
         slice_duration: int = 180,
         num_clips: int = 2,
         target_clip_duration: float = 45.0,
-        style_preset: str = "flame",
+        style_preset: str = "gta6",
         custom_tags: Optional[List[str]] = None,
         credits_name: str = "CarryMinati",
         channel_handle: str = "@CarryisLive",

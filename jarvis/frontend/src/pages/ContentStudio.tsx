@@ -31,6 +31,18 @@ import { ClipItem, CaptionStyle, api } from '../services/api';
 
 const DEFAULT_CAPTION_STYLES: CaptionStyle[] = [
   {
+    id: "gta6",
+    name: "GTA VI Vice Neon",
+    tag: "GTA VI Official",
+    font: "Impact Heavy",
+    primary_color: "#FFFFFF",
+    highlight_color: "#FF2A85",
+    outline_color: "#180220",
+    sample: "VICE CITY 2026 // WANTED ★★★★★",
+    desc: "Official GTA VI Vice City aesthetic: brilliant white typography with dual flamingo pink & cyan keyword pops and deep midnight violet outline.",
+    size: 84
+  },
+  {
     id: "podcast",
     name: "Hormozi Viral Pop",
     tag: "Trending",
