@@ -945,11 +945,13 @@ export const api = {
     return res.json();
   },
 
-  async importClippedToStudio(id: string, videoPath: string, name?: string, startTime?: number): Promise<any> {
-    const res = await fetch(`/api/studio/projects/${id}/import-clipped`, {
+  async importClippedToStudio(id?: string, videoPath?: string, name?: string, startTime?: number): Promise<any> {
+    const cleanId = id && id.trim() && id !== 'undefined' && id !== 'null' ? encodeURIComponent(id.trim()) : '';
+    const targetUrl = cleanId ? `/api/studio/projects/${cleanId}/import-clipped` : `/api/studio/projects/import-clipped`;
+    const res = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ video_path: videoPath, name, start_time: startTime }),
+      body: JSON.stringify({ video_path: videoPath, name, start_time: startTime, project_id: id }),
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();

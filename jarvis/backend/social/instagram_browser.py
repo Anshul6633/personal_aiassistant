@@ -123,37 +123,17 @@ class InstagramBrowserUploader:
         }
 
     def open_login_window(self) -> Dict[str, Any]:
-        """Launch native Google Chrome for one-time Instagram sign-in without any bot detection."""
-        logger.info("Opening native Google Chrome for Instagram sign-in...")
+        """Launch visible Chrome authentication window for Instagram."""
+        logger.info("Opening Chrome authentication window for Instagram sign-in...")
         self._cleanup_profile_locks()
 
-        chrome_paths = [
-            Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-            Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
-            Path(os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe")),
-        ]
-        chrome_exe = None
-        for p in chrome_paths:
-            if p.exists():
-                chrome_exe = p
-                break
-
         try:
-            if chrome_exe:
-                cmd = f'start "" "{chrome_exe}" --user-data-dir="{self.profile_dir}" "https://www.instagram.com"'
-                subprocess.Popen(cmd, shell=True)
-                return {
-                    "success": True,
-                    "message": "Native Google Chrome opened! Sign in to Instagram directly in the browser window."
-                }
-            else:
-                # Fallback to Playwright-launched Chromium
-                cmd = f'start "" python -m jarvis.backend.social.login_helper'
-                subprocess.Popen(cmd, shell=True)
-                return {
-                    "success": True,
-                    "message": "Login window launched! Sign in to Instagram in the opened browser window."
-                }
+            cmd = f'start "" python -m jarvis.backend.social.instagram_login_helper'
+            subprocess.Popen(cmd, shell=True)
+            return {
+                "success": True,
+                "message": "Instagram login window opened! Please sign in or complete verification in the opened Chrome window. JARVIS will auto-detect your session."
+            }
         except Exception as e:
             logger.error(f"Failed to open Instagram login window: {e}")
             return {"success": False, "error": str(e)}

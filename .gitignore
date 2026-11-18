@@ -31,6 +31,8 @@ credentials*.json
 # Browser Session Profiles & Auth Cookies
 jarvis/browser_profile/
 browser_profile/
+jarvis/browser_profile_instagram/
+browser_profile_instagram/
 jarvis/playwright_profile/
 playwright_profile/
 playwright-report/

@@ -735,7 +735,7 @@ async def start_continuous_livestream(req: ContinuousLivestreamRequest, backgrou
         custom_tags=req.tags,
         credits_name=req.credits_name or "CarryMinati",
         channel_handle=req.channel_handle or "@CarryisLive",
-        crop_mode=req.crop_mode or "fill"
+        crop_mode=req.crop_mode or "split_cam"
     )
     return {
         "status": "CONTINUOUS_CLIPPING_STARTED",
@@ -1901,14 +1901,32 @@ class ImportClippedRequest(BaseModel):
     video_path: str
     name: Optional[str] = None
     start_time: Optional[float] = 0.0
+    project_id: Optional[str] = None
 
 
-@app.post("/api/studio/projects/{project_id}/import-clipped")
-async def api_studio_import_clipped(project_id: str, req: ImportClippedRequest):
-    """Import an autonomous vertical clip into the Studio Project timeline."""
-    proj = project_manager.load_project(project_id)
-    if not proj:
-        raise HTTPException(status_code=404, detail=f"Studio project {project_id} not found")
+def _resolve_studio_project(project_id: Optional[str] = None) -> StudioProject:
+    """Resolve an existing StudioProject or automatically create a default 9:16 timeline."""
+    if project_id and str(project_id).strip() not in ("undefined", "null", ""):
+        proj = project_manager.load_project(str(project_id).strip())
+        if proj:
+            return proj
+
+    all_projs = project_manager.list_projects()
+    if all_projs:
+        first_id = all_projs[0].get("id") if isinstance(all_projs[0], dict) else getattr(all_projs[0], "id", None)
+        if first_id:
+            proj = project_manager.load_project(first_id)
+            if proj:
+                return proj
+
+    return project_manager.create_new_project(
+        name="🔥 Viral Reel Timeline (9:16)",
+        aspect_ratio="9:16"
+    )
+
+
+async def _execute_import_clipped(target_project_id: Optional[str], req: ImportClippedRequest):
+    proj = _resolve_studio_project(target_project_id or req.project_id)
 
     v_path = Path(req.video_path)
     if not v_path.exists():
@@ -1957,6 +1975,19 @@ async def api_studio_import_clipped(project_id: str, req: ImportClippedRequest):
         "project": proj.model_dump(),
         "clip": new_clip.model_dump()
     }
+
+
+@app.post("/api/studio/projects/import-clipped")
+async def api_studio_import_clipped_root(req: ImportClippedRequest):
+    """Import an autonomous vertical clip into Studio Project timeline (auto-resolving active project)."""
+    return await _execute_import_clipped(req.project_id, req)
+
+
+@app.post("/api/studio/projects/{project_id}/import-clipped")
+async def api_studio_import_clipped(project_id: str, req: ImportClippedRequest):
+    """Import an autonomous vertical clip into the Studio Project timeline."""
+    clean_id = project_id if (project_id and str(project_id).strip() not in ("undefined", "null", "")) else req.project_id
+    return await _execute_import_clipped(clean_id, req)
 
 
 @app.post("/api/studio/projects/{project_id}/export-fcpxml")

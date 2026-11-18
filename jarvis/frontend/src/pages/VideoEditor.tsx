@@ -184,6 +184,11 @@ export const VideoEditor: React.FC<VideoEditorProps> = ({ clips, onRefreshClips 
           // If clips exist, jump to the first clip's start time
           setCurrentTime(loaded.clips[0].start_time);
         }
+      } else {
+        const created = await api.createStudioProject('🔥 Viral Reel Timeline (9:16)', '9:16');
+        setProjects([created]);
+        setCurrentProject(created);
+        setExportAspect('9:16');
       }
     } catch (e) {
       console.error('Failed to load studio projects:', e);
@@ -1051,25 +1056,41 @@ export const VideoEditor: React.FC<VideoEditorProps> = ({ clips, onRefreshClips 
 
   // Import Candidate Clip from JARVIS Clipping Engine
   const handleImportClippingCandidate = async (candidate: ClipItem) => {
-    if (!currentProject) return;
     try {
-      const v1Clips = currentProject.clips.filter((c) => c.track_id === 'V1');
+      let activeProj = currentProject;
+      if (!activeProj || !activeProj.id) {
+        if (projects.length > 0) {
+          activeProj = await api.getStudioProject(projects[0].id);
+        } else {
+          activeProj = await api.createStudioProject('🔥 Viral Reel Timeline (9:16)', '9:16');
+          setProjects([activeProj]);
+        }
+        setCurrentProject(activeProj);
+      }
+
+      const v1Clips = (activeProj?.clips || []).filter((c) => c.track_id === 'V1');
       let insertTime = 0.0;
       if (v1Clips.length > 0) {
         insertTime = Math.round(currentTime * 10) / 10;
       }
 
       const res = await api.importClippedToStudio(
-        currentProject.id,
+        activeProj?.id,
         candidate.output_path || candidate.source_file,
         candidate.title,
         insertTime
       );
-      if (res.project) {
+      if (res && res.project) {
         setCurrentProject(res.project);
-        setSelectedClipId(res.clip.id);
-        setCurrentTime(res.clip.start_time);
-        setAiNotice(`Imported '${candidate.title}' and jumped playhead to ${res.clip.start_time.toFixed(1)}s.`);
+        setProjects((prev) => {
+          const exists = prev.some((p) => p.id === res.project.id);
+          return exists ? prev.map((p) => (p.id === res.project.id ? res.project : p)) : [res.project, ...prev];
+        });
+        if (res.clip) {
+          setSelectedClipId(res.clip.id);
+          setCurrentTime(res.clip.start_time);
+          setAiNotice(`Imported '${candidate.title}' and jumped playhead to ${res.clip.start_time.toFixed(1)}s.`);
+        }
       }
     } catch (e: any) {
       alert(`Error importing clip: ${e.message}`);
