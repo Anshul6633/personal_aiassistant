@@ -65,6 +65,7 @@ scratch/
 *.avi
 *.mov
 *.ts
+!jarvis/frontend/src/**/*.ts
 *.webm
 *.png
 *.jpg

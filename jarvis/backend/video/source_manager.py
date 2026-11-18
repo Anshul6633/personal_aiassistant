@@ -127,7 +127,7 @@ class SourceVideoManager:
         out_template = str(downloads_dir / "%(id)s_%(title).60s.%(ext)s")
         ffmpeg_dir = str(Path(self.ffmpeg).parent) if self.ffmpeg else None
 
-        from jarvis.backend.video.ytdlp_utils import get_ytdlp_base_opts, get_ytdlp_download_opts
+        from jarvis.backend.video.ytdlp_utils import get_ytdlp_base_opts, get_ytdlp_download_opts, safe_extract_info
 
         # Check if URL is an ongoing livestream to avoid infinite download hangs
         try:
@@ -144,19 +144,7 @@ class SourceVideoManager:
         ydl_opts = get_ytdlp_download_opts(out_template=out_template, ffmpeg_location=ffmpeg_dir)
 
         logger.info(f"Downloading YouTube video from: {url}")
-        info = None
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-        except Exception as e:
-            if ("cookie" in str(e).lower() or "sqlite" in str(e).lower()) and "cookiesfrombrowser" in ydl_opts:
-                logger.warning(f"Browser cookies locked by active session ({e}). Retrying direct download...")
-                ydl_opts_fallback = dict(ydl_opts)
-                ydl_opts_fallback.pop("cookiesfrombrowser", None)
-                with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl_fb:
-                    info = ydl_fb.extract_info(url, download=True)
-            else:
-                raise
+        info = safe_extract_info(url, download=True, extra_opts=ydl_opts)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             prep_file = Path(ydl.prepare_filename(info))

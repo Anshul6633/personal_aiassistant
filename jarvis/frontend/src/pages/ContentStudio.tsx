@@ -661,7 +661,28 @@ export const ContentStudio: React.FC<ContentStudioProps> = ({ clips, onRefreshCl
                 <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" />
                 <span className="uppercase tracking-wider">Autonomous Pipeline Active</span>
               </div>
-              <span className="text-cyan-400 font-bold text-sm">{taskProgress}%</span>
+              <div className="flex items-center gap-2">
+                <span className="text-cyan-400 font-bold text-sm">{taskProgress}%</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await api.resetPipeline();
+                      stopPolling();
+                      setIsProcessing(false);
+                      setTaskProgress(0);
+                      setProcessMessage('');
+                      showNotice('Pipeline cancelled and reset to idle.');
+                    } catch (e: any) {
+                      showNotice(`Reset error: ${e.message}`);
+                    }
+                  }}
+                  className="px-2 py-0.5 rounded bg-red-950/70 hover:bg-red-900 border border-red-500/40 text-[10px] text-red-300 cursor-pointer transition-colors"
+                  title="Cancel active pipeline and reset status"
+                >
+                  Cancel / Reset
+                </button>
+              </div>
             </div>
             {/* Animated Gradient Progress Bar */}
             <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-cyan-500/30">

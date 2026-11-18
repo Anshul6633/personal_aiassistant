@@ -378,8 +378,21 @@ async def emergency_stop():
 async def reset_emergency():
     """Reset emergency stop."""
     security_guard.reset_emergency_stop()
+    from jarvis.backend.video.pipeline import video_pipeline
+    video_pipeline.is_processing = False
     await state_manager.set_status(AssistantState.IDLE, "Systems nominal.")
+    await state_manager.update(task_progress=0, active_task_id=None, active_task_title=None)
     return {"status": "RESET_OK"}
+
+
+@app.post("/api/pipeline/reset")
+async def reset_pipeline():
+    """Cancel and reset any stuck or active video pipeline."""
+    from jarvis.backend.video.pipeline import video_pipeline
+    video_pipeline.is_processing = False
+    await state_manager.set_status(AssistantState.IDLE, "Pipeline reset by user.")
+    await state_manager.update(task_progress=0, active_task_id=None, active_task_title=None)
+    return {"status": "RESET_OK", "message": "Pipeline reset successfully."}
 
 
 # --- Video Clipping Factory Endpoints ---

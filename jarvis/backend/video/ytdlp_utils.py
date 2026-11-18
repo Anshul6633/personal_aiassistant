@@ -118,10 +118,19 @@ def get_ytdlp_download_opts(
 ) -> Dict[str, Any]:
     """Generate options specifically for 1080p/720p/best MP4 downloading."""
     opts = get_ytdlp_base_opts(download=True, quiet=True, client_sequence=client_sequence)
+    is_cloud = bool(os.getenv("HEADLESS") or os.getenv("RENDER") or os.getenv("RAILWAY_STATIC_URL"))
+    if is_cloud:
+        # On cloud (Render free tier), prioritize fast download & compact footprint to prevent OOM
+        format_str = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=480][ext=mp4]/best[ext=mp4]/best"
+    else:
+        format_str = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best"
+
     opts.update({
-        "format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best",
+        "format": format_str,
         "outtmpl": out_template,
         "merge_output_format": "mp4",
+        "socket_timeout": 30,
+        "retries": 3,
     })
 
     if ffmpeg_location and Path(ffmpeg_location).exists():

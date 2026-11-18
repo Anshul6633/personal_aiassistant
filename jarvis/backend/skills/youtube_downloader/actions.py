@@ -63,8 +63,8 @@ def download_youtube_video(
     ydl_opts = get_ytdlp_download_opts(out_template=out_template, ffmpeg_location=FFMPEG_BIN_DIR)
 
     logger.info(f"Downloading YouTube video from: {url}")
+    info = safe_extract_info(url, download=True, extra_opts=ydl_opts)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
         # Determine actual file downloaded
         expected_filename = ydl.prepare_filename(info)
         file_path = Path(expected_filename)
