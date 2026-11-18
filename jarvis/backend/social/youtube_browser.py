@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from playwright.async_api import async_playwright, BrowserContext, Page
-from jarvis.backend.config.settings import WORKSPACE_ROOT
+from jarvis.backend.config.settings import WORKSPACE_ROOT, settings
 from jarvis.backend.security.permissions import security_guard
 
 logger = logging.getLogger("JARVIS.YouTubeBrowser")
