@@ -760,11 +760,8 @@ class YouTubeSchedulerEngine:
 
         target_dt = ref_dt + timedelta(minutes=interval)
 
-        # Off-peak dead-zone guard (01:00 AM - 06:30 AM)
-        if 1 <= target_dt.hour < 7:
-            target_dt = target_dt.replace(hour=7, minute=30, second=0, microsecond=0)
-            if target_dt < now:
-                target_dt = now + timedelta(minutes=base_interval_minutes)
+        # 24/7 Global International Coverage: Do not pause or skip overnight dead hours
+        # Allows international audiences (US, UK, Europe) to discover clips while local audience sleeps
 
         # Ensure target is at least 10 minutes ahead of now
         min_allowed = now + timedelta(minutes=10)
@@ -887,12 +884,13 @@ class YouTubeSchedulerEngine:
         logger.info("Autonomous Social Schedule Worker Loop started (YouTube & Instagram).")
         while True:
             try:
-                if not self.is_paused and not self._current_uploading_id:
-                    now_iso = datetime.now().isoformat()
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
+                now_iso = datetime.now().isoformat()
+                conn = get_db_connection()
+                cursor = conn.cursor()
 
-                    # 1. Check YouTube Queue
+                # 1. Check YouTube Queue (only if not paused by active browser session)
+                yt_row = None
+                if not self.is_paused and not self._current_uploading_id:
                     cursor.execute("""
                         SELECT * FROM youtube_schedule_queue 
                         WHERE status = 'QUEUED' AND scheduled_time <= ?
@@ -900,7 +898,9 @@ class YouTubeSchedulerEngine:
                     """, (now_iso,))
                     yt_row = cursor.fetchone()
 
-                    # 2. Check Instagram Queue
+                # 2. Check Instagram Queue (runs independently via Mobile Private API; never blocked by YouTube)
+                ig_row = None
+                if not self._current_uploading_id:
                     cursor.execute("""
                         SELECT * FROM instagram_schedule_queue
                         WHERE status = 'QUEUED' AND scheduled_time <= ?
@@ -908,16 +908,16 @@ class YouTubeSchedulerEngine:
                     """, (now_iso,))
                     ig_row = cursor.fetchone()
 
-                    conn.close()
+                conn.close()
 
-                    if yt_row:
-                        item = dict(yt_row)
-                        logger.info(f"Queue Worker: Found due YouTube item: '{item['title']}' (scheduled: {item['scheduled_time']})")
-                        await self.process_single_item(item)
-                    elif ig_row and not self._current_uploading_id:
-                        item = dict(ig_row)
-                        logger.info(f"Queue Worker: Found due Instagram Reel: '{item['file_name']}' (scheduled: {item['scheduled_time']})")
-                        await self.process_single_instagram_item(item)
+                if yt_row:
+                    item = dict(yt_row)
+                    logger.info(f"Queue Worker: Found due YouTube item: '{item['title']}' (scheduled: {item['scheduled_time']})")
+                    await self.process_single_item(item)
+                elif ig_row and not self._current_uploading_id:
+                    item = dict(ig_row)
+                    logger.info(f"Queue Worker: Found due Instagram Reel: '{item['file_name']}' (scheduled: {item['scheduled_time']})")
+                    await self.process_single_instagram_item(item)
 
             except Exception as e:
                 logger.error(f"Error in queue worker loop: {e}", exc_info=True)
