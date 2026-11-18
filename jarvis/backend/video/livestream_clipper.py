@@ -595,6 +595,7 @@ class LivestreamClipperManager:
                         self._log(f"⚠️ YouTube Studio upload notice: {ue}. Auto-enqueuing to local YouTube schedule queue.")
                         try:
                             scheduler_engine.enqueue_clip(
+                                clip_id=clip.get("id") or str(uuid.uuid4()),
                                 video_path=short_path,
                                 title=final_title,
                                 description=short_desc,
