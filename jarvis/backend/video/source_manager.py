@@ -127,14 +127,11 @@ class SourceVideoManager:
         out_template = str(downloads_dir / "%(id)s_%(title).60s.%(ext)s")
         ffmpeg_dir = str(Path(self.ffmpeg).parent) if self.ffmpeg else None
 
-        node_path = shutil.which("node")
-        browser_profile = WORKSPACE_ROOT / "jarvis" / "browser_profile"
+        from jarvis.backend.video.ytdlp_utils import get_ytdlp_base_opts, get_ytdlp_download_opts
 
         # Check if URL is an ongoing livestream to avoid infinite download hangs
         try:
-            probe_opts = {'quiet': True, 'skip_download': True, 'remote_components': ['ejs:github']}
-            if node_path:
-                probe_opts['js_runtimes'] = {'node': {'path': node_path}}
+            probe_opts = get_ytdlp_base_opts(download=False, quiet=True)
             with yt_dlp.YoutubeDL(probe_opts) as ydl_probe:
                 probe_info = ydl_probe.extract_info(url, download=False)
                 if probe_info and probe_info.get("is_live"):
@@ -144,21 +141,7 @@ class SourceVideoManager:
         except Exception as pe:
             logger.debug(f"Live probe pass: {pe}")
 
-        ydl_opts = {
-            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'outtmpl': out_template,
-            'merge_output_format': 'mp4',
-            'ffmpeg_location': ffmpeg_dir,
-            'quiet': True,
-            'no_warnings': True,
-            'remote_components': ['ejs:github']
-        }
-
-        if node_path:
-            ydl_opts['js_runtimes'] = {'node': {'path': node_path}}
-
-        if browser_profile.exists():
-            ydl_opts['cookiesfrombrowser'] = ('chrome', str(browser_profile.resolve()), None, None)
+        ydl_opts = get_ytdlp_download_opts(out_template=out_template, ffmpeg_location=ffmpeg_dir)
 
         logger.info(f"Downloading YouTube video from: {url}")
         info = None

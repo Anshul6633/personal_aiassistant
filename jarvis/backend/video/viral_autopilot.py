@@ -106,26 +106,12 @@ class ViralAutopilotManager:
             query = f"ytsearch5:{query} viral"
 
         self._log(f"Searching YouTube for viral candidates: '{query}'...")
-        import shutil
-        from jarvis.backend.config.settings import WORKSPACE_ROOT
+        from jarvis.backend.video.ytdlp_utils import safe_extract_info
 
-        browser_profile = WORKSPACE_ROOT / "jarvis" / "browser_profile"
-        node_path = shutil.which("node")
-
-        ydl_opts = {
-            "quiet": True,
-            "extract_flat": True,
-            "skip_download": True,
-            "remote_components": ["ejs:github"]
-        }
-        if node_path:
-            ydl_opts["js_runtimes"] = {"node": {"path": node_path}}
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            res = ydl.extract_info(query, download=False)
-            entries = res.get("entries", [])
-            if not entries:
-                raise ValueError(f"No viral videos found on YouTube for query: {query}")
+        res = safe_extract_info(query, download=False, extra_opts={"extract_flat": True})
+        entries = res.get("entries", [])
+        if not entries:
+            raise ValueError(f"No viral videos found on YouTube for query: {query}")
 
             # Pick the best candidate: preferably between 3m and 45m duration
             best = None

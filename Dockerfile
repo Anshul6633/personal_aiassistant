@@ -8,11 +8,12 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Install system dependencies: ffmpeg for video, libportaudio2 for audio, libgomp1 for OpenMP/OpenCV
+# Install system dependencies: ffmpeg for video, libportaudio2 for audio, libgomp1 for OpenMP/OpenCV, nodejs for yt-dlp JS challenges
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libportaudio2 \
     libgomp1 \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies with --break-system-packages for Ubuntu 24.04 Noble

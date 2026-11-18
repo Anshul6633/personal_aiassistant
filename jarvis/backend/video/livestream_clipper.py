@@ -68,19 +68,11 @@ class LivestreamClipperManager:
             search_query = f"ytsearch10:{search_query}"
 
         self._log(f"Searching YouTube for ongoing live streams: '{search_query}'...")
-        opts = {
-            "quiet": True,
-            "extract_flat": True,
-            "skip_download": True,
-            "remote_components": ["ejs:github"]
-        }
-        node_path = shutil.which("node")
-        if node_path:
-            opts["js_runtimes"] = {"node": {"path": node_path}}
+        from jarvis.backend.video.ytdlp_utils import safe_extract_info, get_ytdlp_base_opts
 
         live_results = []
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            res = ydl.extract_info(search_query, download=False)
+        try:
+            res = safe_extract_info(search_query, download=False, extra_opts={"extract_flat": True})
             entries = res.get("entries", [])
             for e in entries:
                 if not e:
@@ -97,6 +89,8 @@ class LivestreamClipperManager:
                     })
                     if len(live_results) >= limit:
                         break
+        except Exception as ex:
+            self._log(f"Live stream discovery error: {ex}")
 
         # Fallback if specific query didn't have active live streams: check popular streams
         if not live_results and query:
@@ -107,36 +101,26 @@ class LivestreamClipperManager:
     def capture_live_slice(self, live_url: str, duration_seconds: int = 60) -> Dict[str, Any]:
         """Extract live HLS stream manifests and record synchronized rolling slice."""
         self._log(f"Extracting live stream manifest from: {live_url}...")
-        browser_profile = WORKSPACE_ROOT / "jarvis" / "browser_profile"
-        node_path = shutil.which("node")
+        from jarvis.backend.video.ytdlp_utils import safe_extract_info
 
-        opts = {
-            "quiet": True,
-            "skip_download": True,
-            "remote_components": ["ejs:github"]
-        }
-        if node_path:
-            opts["js_runtimes"] = {"node": {"path": node_path}}
+        info = safe_extract_info(live_url, download=False)
+        title = info.get("title", "Live Stream")
+        uploader = info.get("uploader", "Broadcaster")
+        formats = info.get("formats", [])
 
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(live_url, download=False)
-            title = info.get("title", "Live Stream")
-            uploader = info.get("uploader", "Broadcaster")
-            formats = info.get("formats", [])
+        # Locate video-capable and audio-capable HLS streams
+        v_formats = [f for f in formats if f.get("vcodec") != "none" and ("m3u8" in f.get("url", "") or f.get("protocol") in ["m3u8", "m3u8_native"])]
+        a_formats = [f for f in formats if f.get("acodec") != "none" and ("m3u8" in f.get("url", "") or f.get("protocol") in ["m3u8", "m3u8_native"])]
 
-            # Locate video-capable and audio-capable HLS streams
-            v_formats = [f for f in formats if f.get("vcodec") != "none" and ("m3u8" in f.get("url", "") or f.get("protocol") in ["m3u8", "m3u8_native"])]
-            a_formats = [f for f in formats if f.get("acodec") != "none" and ("m3u8" in f.get("url", "") or f.get("protocol") in ["m3u8", "m3u8_native"])]
+        if not v_formats:
+            # Combined format fallback
+            v_formats = [f for f in formats if "m3u8" in f.get("url", "")]
 
-            if not v_formats:
-                # Combined format fallback
-                v_formats = [f for f in formats if "m3u8" in f.get("url", "")]
+        if not v_formats:
+            raise ValueError(f"Could not extract live HLS stream URLs from {live_url}")
 
-            if not v_formats:
-                raise ValueError(f"Could not extract live HLS stream URLs from {live_url}")
-
-            best_v = v_formats[-1]
-            best_a = a_formats[-1] if a_formats else None
+        best_v = v_formats[-1]
+        best_a = a_formats[-1] if a_formats else None
 
         safe_stem = re.sub(r"[^\w\-]", "_", title)[:40]
         slice_id = str(uuid.uuid4())[:8]

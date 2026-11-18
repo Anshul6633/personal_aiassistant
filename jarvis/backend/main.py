@@ -1463,6 +1463,46 @@ async def api_list_downloaded_podcasts():
     return list_downloaded_podcasts()
 
 
+class CookieUploadRequest(BaseModel):
+    cookies_text: str
+
+
+@app.get("/api/cookies/status")
+async def get_cookies_status():
+    """Check if YouTube Netscape cookies are active on this instance."""
+    from jarvis.backend.video.ytdlp_utils import get_cookie_file
+    c_file = get_cookie_file()
+    if c_file and c_file.exists():
+        size = c_file.stat().st_size
+        lines = len(c_file.read_text(encoding="utf-8", errors="ignore").splitlines())
+        return {
+            "has_cookies": True,
+            "cookie_path": str(c_file),
+            "file_size": size,
+            "lines": lines,
+            "status": "Active Netscape YouTube authentication file ready"
+        }
+    return {
+        "has_cookies": False,
+        "cookie_path": None,
+        "status": "No cookie file found. Using multi-client emulation & node JS challenge solver."
+    }
+
+
+@app.post("/api/cookies/upload")
+async def upload_cookies(req: CookieUploadRequest):
+    """Save user-exported Netscape cookies.txt to browser_profile."""
+    from jarvis.backend.video.ytdlp_utils import save_cookies_text
+    if not req.cookies_text or len(req.cookies_text.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Invalid or empty cookies text.")
+    saved_path = save_cookies_text(req.cookies_text)
+    return {
+        "success": True,
+        "message": f"Successfully loaded YouTube cookies ({len(req.cookies_text)} chars) into {saved_path.name}",
+        "cookie_path": str(saved_path)
+    }
+
+
 class SplitLongVideoRequest(BaseModel):
     video_path: str
     num_clips: Optional[int] = 5

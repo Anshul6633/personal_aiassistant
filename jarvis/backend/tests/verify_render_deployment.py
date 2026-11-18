@@ -186,6 +186,26 @@ try:
 except Exception as e:
     record("Social", "Instagram Stealth Profile", False, str(e))
 
+# 8. Cloud YouTube Engine & Bot-Defense Shield
+print("\n[8. CLOUD YOUTUBE ENGINE & BOT-DEFENSE SHIELD]")
+try:
+    status, raw = fetch(f"{RENDER_BASE}/api/cookies/status")
+    data = json.loads(raw.decode())
+    has_c = data.get("has_cookies", False)
+    record("YouTube", "Cookie Shield Status (/api/cookies/status)", status == 200, f"Status: {data.get('status')[:45]}...")
+except Exception as e:
+    record("YouTube", "Cookie Shield Status", False, str(e))
+
+try:
+    yt_payload = json.dumps({"url": "https://www.youtube.com/watch?v=GTd0ygptkJE"}).encode("utf-8")
+    status, raw = fetch(f"{RENDER_BASE}/api/youtube/metadata", data=yt_payload, headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}, timeout=25)
+    data = json.loads(raw.decode())
+    title = data.get("title", "")
+    dur = data.get("duration", 0)
+    record("YouTube", "Bypass Bot Challenge (/api/youtube/metadata)", status == 200 and dur > 0, f"Title: '{title[:35]}...' | Dur: {dur}s")
+except Exception as e:
+    record("YouTube", "Bypass Bot Challenge (/api/youtube/metadata)", False, str(e))
+
 # Summary
 total = len(results)
 passed_count = sum(1 for r in results if r["passed"])
