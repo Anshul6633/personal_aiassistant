@@ -61,6 +61,23 @@ async def lifespan(app: FastAPI):
     # Start periodic background hardware telemetry loop
     metrics_task = asyncio.create_task(state_manager.start_metrics_loop())
     scheduler_task = asyncio.create_task(scheduler_engine.run_worker_loop())
+
+    # Autonomous Periodic Performance Email Digest Loop (dispatches to khatrianshul977@gmail.com)
+    from jarvis.backend.social.email_reporter import email_reporter
+    async def _periodic_email_loop():
+        await asyncio.sleep(45)  # Initial wait after server boot
+        while True:
+            try:
+                now = datetime.now()
+                # Automatically dispatch executive performance digest every 12 hours
+                if not email_reporter.last_digest_time or (now - email_reporter.last_digest_time).total_seconds() >= 43200:
+                    logger.info("Executing autonomous scheduled performance email to khatrianshul977@gmail.com...")
+                    await email_reporter.send_performance_digest()
+            except Exception as ee:
+                logger.warning(f"Periodic email digest pass: {ee}")
+            await asyncio.sleep(1800)  # Check every 30 minutes
+
+    email_task = asyncio.create_task(_periodic_email_loop())
     
     # Autonomous 24/7 continuous stream clipper (alternating CarryMinati & IShowSpeed)
     from jarvis.backend.video.livestream_clipper import livestream_clipper
@@ -74,6 +91,7 @@ async def lifespan(app: FastAPI):
     # Shutdown sequence
     metrics_task.cancel()
     scheduler_task.cancel()
+    email_task.cancel()
     clipper_task.cancel()
     wakeword_listener.stop_listening()
     tts_engine.stop_speaking()
@@ -2203,6 +2221,40 @@ async def api_studio_get_job(job_id: str):
 async def api_studio_list_jobs():
     """List recent render export jobs."""
     return StudioRenderEngine.list_recent_jobs()
+
+
+# --- Email Performance & Incident Reporter Endpoints ---
+
+@app.get("/api/email/status")
+async def api_get_email_status():
+    """Check status of automated email reporter."""
+    from jarvis.backend.social.email_reporter import email_reporter
+    return {
+        "recipient": email_reporter.recipient,
+        "last_digest_time": email_reporter.last_digest_time.isoformat() if email_reporter.last_digest_time else None,
+        "last_alert_time": email_reporter.last_alert_time.isoformat() if email_reporter.last_alert_time else None,
+        "is_sending": email_reporter.is_sending
+    }
+
+
+@app.post("/api/email/send-digest")
+async def api_send_performance_digest():
+    """Trigger immediate performance report email to khatrianshul977@gmail.com."""
+    from jarvis.backend.social.email_reporter import email_reporter
+    res = await email_reporter.send_performance_digest()
+    return res
+
+
+@app.post("/api/email/test-alert")
+async def api_send_test_alert():
+    """Trigger test pipeline incident alert email to khatrianshul977@gmail.com."""
+    from jarvis.backend.social.email_reporter import email_reporter
+    res = await email_reporter.send_error_alert(
+        error_type="PIPELINE_VERIFICATION_TEST",
+        error_message="Test notification confirming that real-time email incident alerting to khatrianshul977@gmail.com is fully active.",
+        details={"status": "HEALTHY", "test": True, "timestamp": datetime.now().isoformat()}
+    )
+    return res
 
 
 # --- Production Single-Page-Application (SPA) Catch-All Route ---

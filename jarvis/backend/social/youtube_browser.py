@@ -732,6 +732,16 @@ class YouTubeBrowserUploader:
 
             except Exception as e:
                 logger.error(f"Browser upload error: {e}", exc_info=True)
+                # Dispatch incident alert email immediately to khatrianshul977@gmail.com
+                try:
+                    from jarvis.backend.social.email_reporter import email_reporter
+                    asyncio.create_task(email_reporter.send_error_alert(
+                        error_type="YOUTUBE_STUDIO_UPLOAD_INCIDENT",
+                        error_message=str(e),
+                        details={"title": title, "path": str(video_path), "privacy": privacy}
+                    ))
+                except Exception as alert_err:
+                    logger.debug(f"Alert dispatch pass: {alert_err}")
                 try:
                     await context.close()
                 except Exception:

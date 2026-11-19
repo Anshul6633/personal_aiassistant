@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, Sparkles, Flame, Copy, Check, Hash, Lightbulb, Compass, 
   Share2, MessageSquare, Repeat, Zap, ShieldCheck, Globe, CheckCircle2,
-  DollarSign, Film, Clock, Target, Award, Calendar
+  DollarSign, Film, Clock, Target, Award, Calendar, Mail
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -367,6 +367,26 @@ export const ViralResearch: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const res = await api.sendEmailDigest();
+                if (res.success) {
+                  alert(`✅ Performance Digest Dispatched to ${res.recipient}!\n• Subject: ${res.subject}\n• Method: ${res.method}`);
+                } else {
+                  alert(`Email notice: ${res.error || 'Failed'}`);
+                }
+              } catch (e: any) {
+                alert(`Error: ${e.message}`);
+              }
+            }}
+            className="px-3 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+            title="Dispatch real-time executive performance digest to khatrianshul977@gmail.com"
+          >
+            <Mail className="w-3.5 h-3.5 text-purple-400" />
+            <span>Email Report</span>
+          </button>
+
           <button
             onClick={async () => {
               try {

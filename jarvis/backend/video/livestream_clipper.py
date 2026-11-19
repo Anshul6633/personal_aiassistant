@@ -890,6 +890,15 @@ class LivestreamClipperManager:
             self._log("Continuous pipeline cancelled.")
         except Exception as e:
             self._log(f"Continuous pipeline encountered error: {e}")
+            try:
+                from jarvis.backend.social.email_reporter import email_reporter
+                asyncio.create_task(email_reporter.send_error_alert(
+                    error_type="LIVESTREAM_PIPELINE_ERROR",
+                    error_message=str(e),
+                    details={"cycle": cycle, "active_creator": active_creator, "url": active_url}
+                ))
+            except Exception as mail_err:
+                logger.debug(f"Alert mail pass: {mail_err}")
         finally:
             self.continuous_running = False
             self.is_running = False

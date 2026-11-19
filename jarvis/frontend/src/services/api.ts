@@ -793,6 +793,21 @@ export const api = {
     return res.json();
   },
 
+  async getEmailStatus(): Promise<any> {
+    const res = await fetch('/api/email/status');
+    return res.json();
+  },
+
+  async sendEmailDigest(): Promise<any> {
+    const res = await fetch('/api/email/send-digest', { method: 'POST' });
+    return res.json();
+  },
+
+  async sendEmailTestAlert(): Promise<any> {
+    const res = await fetch('/api/email/test-alert', { method: 'POST' });
+    return res.json();
+  },
+
   async getCaptionStyles(): Promise<CaptionStyle[]> {
     const res = await fetch('/api/video/caption-styles');
     return res.json();
