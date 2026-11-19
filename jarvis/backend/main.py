@@ -121,8 +121,27 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Mount output directory for media streaming
-app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
+# Multi-directory StaticFiles for dual-drive media streaming (C: and D: drives)
+class MultiDirectoryStaticFiles(StaticFiles):
+    def __init__(self, directories: List[Path], **kwargs):
+        self.directories = [Path(d) for d in directories if Path(d).exists()]
+        super().__init__(directory=str(self.directories[0]) if self.directories else str(OUTPUT_DIR), **kwargs)
+
+    def lookup_path(self, path: str):
+        for dir_path in self.directories:
+            try:
+                full_path = (dir_path / path).resolve()
+                if full_path.is_file():
+                    return str(full_path), full_path.stat()
+            except Exception:
+                continue
+        return "", None
+
+MEDIA_DIRECTORIES = [
+    Path("D:/jarvis_media/output"),
+    OUTPUT_DIR
+]
+app.mount("/output", MultiDirectoryStaticFiles(directories=MEDIA_DIRECTORIES), name="output")
 
 # Mount compiled production frontend assets
 FRONTEND_DIST_DIR = WORKSPACE_ROOT / "jarvis" / "frontend" / "dist"
