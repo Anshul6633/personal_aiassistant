@@ -371,10 +371,22 @@ class EmailReporter:
                     await body_input.fill(body_text)
                     await asyncio.sleep(1.0)
 
-                    # Trigger send via Control+Enter
-                    logger.info("Executing Control+Enter to dispatch email...")
-                    await page.keyboard.press("Control+Enter")
-                    await asyncio.sleep(4.0)
+                    # Click actual Send button
+                    logger.info("Clicking Send button in Gmail...")
+                    send_btn = page.locator("div[role='button']:has-text('Send'), div[aria-label*='Send' i][role='button'], div.T-I.J-J5-Ji.aoO.v7.T-I-atl.L3").first
+                    if await send_btn.is_visible():
+                        await send_btn.click(force=True)
+                    else:
+                        await page.keyboard.press("Control+Enter")
+
+                    # Wait for 'Message sent' toast confirmation from Google
+                    try:
+                        toast = page.locator("text='Message sent'").first
+                        await toast.wait_for(state="visible", timeout=12000)
+                        logger.info("CONFIRMED: 'Message sent' toast confirmed from Gmail!")
+                    except Exception as te:
+                        logger.debug(f"Toast wait completed: {te}")
+                    await asyncio.sleep(2.5)
 
                 await context.close()
                 self.is_sending = False
