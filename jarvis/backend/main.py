@@ -1549,14 +1549,16 @@ async def render_custom_clip(req: CustomRenderRequest):
     else:
         used_sub = None
 
-    # 2. Render 9:16 vertical clip with updated subtitle burn-in
+    # 2. Render 9:16 vertical clip with updated subtitle burn-in and distinct background music
     res = video_editor.render_vertical_clip(
         source_video=clip_dict["source_file"],
         start_time=clip_dict["start_time"],
         end_time=clip_dict["end_time"],
         output_name=out_name,
         subtitles_ass=used_sub,
-        trim_silence=req.trim_silence
+        trim_silence=req.trim_silence,
+        hook_title=clip_dict.get("title"),
+        streamer_name=clip_dict.get("channel") or clip_dict.get("streamer")
     )
 
     # 3. Persist updated paths in database

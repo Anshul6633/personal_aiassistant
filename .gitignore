@@ -62,6 +62,7 @@ bin/
 jarvis/output/
 output/
 scratch/
+jarvis/assets/music/music_usage_history.json
 *.wav
 *.mp3
 *.mp4

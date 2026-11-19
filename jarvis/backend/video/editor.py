@@ -432,13 +432,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         sfx_drop_path = Path("jarvis/assets/sfx/whoosh_impact_drop.wav")
         has_whoosh_sfx = bool(inject_0s_impact and sfx_drop_path.exists())
 
-        # Auto-resolve trending background music track
+        # Auto-resolve distinct trending background music track (guaranteed anti-repetition rotation)
+        bgm_offset = 0.0
         if add_bg_music and not bg_music_path:
             try:
                 from jarvis.backend.video.trending_music_manager import trending_music_manager
-                bg_music_path = trending_music_manager.get_track_for_clip()
-            except Exception:
+                track_info = trending_music_manager.get_track_info_for_clip(
+                    genre=None,
+                    streamer_name=streamer_name,
+                    hook_title=hook_title,
+                    clip_id=output_name
+                )
+                bg_music_path = track_info.get("path")
+                bgm_offset = float(track_info.get("offset", 0.0))
+            except Exception as e:
+                logger.warning(f"Distinct background music resolution fallback: {e}")
                 bg_music_path = None
+                bgm_offset = 0.0
 
         has_bg_music = bool(bg_music_path and Path(bg_music_path).exists())
 
@@ -448,7 +458,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         bgm_idx = None
         if has_bg_music:
             bgm_idx = curr_in_idx
-            input_args.extend(["-stream_loop", "-1", "-ss", "0", "-t", str(duration), "-i", str(bg_music_path)])
+            input_args.extend(["-stream_loop", "-1", "-ss", f"{bgm_offset:.2f}", "-t", str(duration), "-i", str(bg_music_path)])
             curr_in_idx += 1
 
         sfx_idx = None
