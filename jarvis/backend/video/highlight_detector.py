@@ -41,7 +41,13 @@ class HighlightDetector:
         n = len(segments)
 
         for i in range(n):
-            seg_start = segments[i]["start"]
+            # 2026 Golden Rule #1: 0.0s Climax Injection - snap exactly to first word speech start (zero dead air)
+            seg_words = segments[i].get("words", [])
+            if seg_words and "start" in seg_words[0]:
+                seg_start = seg_words[0]["start"]
+            else:
+                seg_start = segments[i]["start"]
+
             current_text = []
             hook_strength = 60.0
 
@@ -59,10 +65,16 @@ class HighlightDetector:
                     full_window_text = " ".join(current_text)
                     word_count = len(full_window_text.split())
 
-                    # Calculate information and story completeness heuristics
+                    # Calculate information and story completeness heuristics (Golden Rule #2 Audio Loop design)
                     completeness = 70.0
-                    if segments[j]["text"].strip().endswith((".", "!", "?")):
+                    end_text = segments[j]["text"].strip()
+                    if end_text.endswith((".", "!", "?")):
                         completeness += 15.0
+                    # If ending word connects grammatically back to opening clause, award retention bonus
+                    first_word = opening_text.split()[0] if opening_text.split() else ""
+                    last_word = end_text.lower().split()[-1].strip(".,!?") if end_text.split() else ""
+                    if last_word in ("because", "and", "so", "which", "wait", "like", "when", "that"):
+                        completeness += 20.0  # Endless loop multiplier
 
                     engagement = min(95.0, 60.0 + (word_count / duration) * 8.0)
 
@@ -98,6 +110,7 @@ Output valid JSON ONLY with this schema:
   "title": "Short punchy click-worthy title (under 50 chars)",
   "caption": "Engaging description with a question for viewers",
   "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
+  "debate_comment": "Binary polarizing debate question for pinned comment (e.g. Did he throw? Comment 🔥 for YES or 💀 for NO!)",
   "hook_rating": 85
 }}"""
 
@@ -127,6 +140,8 @@ Output valid JSON ONLY with this schema:
                             candidate["title"] = data.get("title", candidate["text"][:45] + "...")
                             candidate["caption"] = data.get("caption", candidate["text"][:120] + "...")
                             candidate["tags"] = " ".join(data.get("hashtags", ["#shorts", "#reels", "#viral"]))
+                            if data.get("debate_comment"):
+                                candidate["debate_comment"] = data["debate_comment"]
                             return candidate
                 except Exception as ge:
                     logger.debug(f"Groq enrich note ({g_model}): {ge}")

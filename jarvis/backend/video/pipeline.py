@@ -13,7 +13,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from jarvis.backend.video.source_manager import source_manager
-from jarvis.backend.video.metadata_generator import generate_proper_youtube_description, format_viral_shorts_title
+from jarvis.backend.video.metadata_generator import (
+    generate_proper_youtube_description,
+    format_viral_shorts_title,
+    generate_debate_comment
+)
 from jarvis.backend.voice.stt import stt_engine
 from jarvis.backend.video.highlight_detector import highlight_detector
 from jarvis.backend.video.clip_scorer import clip_scorer
@@ -264,7 +268,11 @@ class VideoPipeline:
                     hook_title=viral_title
                 )
 
-                # Render 9:16 vertical MP4 with Ultra-HD studio mastering, trending music & high-CTR smart cover
+                # Render 9:16 vertical MP4 with 2026 Golden Retention Rules:
+                # 1. 0.0s Climax Injection with 0.5s sub-bass whoosh drop & optical shock flash
+                # 2. Seamless audio-first loop crossfade (<0.08s tail)
+                # 3. Dynamic on-screen SPR (Sends-Per-Reach) multiplier prompts
+                # 5. Aggressive dead air removal (cuts all silences >0.8s)
                 rendered = await loop.run_in_executor(
                     None,
                     lambda: video_editor.render_vertical_clip(
@@ -273,12 +281,13 @@ class VideoPipeline:
                         end_time=cand["end_time"],
                         output_name=clip_label,
                         subtitles_ass=ass_path,
-                        trim_silence=False,
+                        trim_silence=True,
                         crop_mode=clip_crop_mode,
                         add_bg_music=True,
                         bg_music_path=None,
                         hook_title=viral_title,
-                        streamer_name=source_channel
+                        streamer_name=source_channel,
+                        inject_0s_impact=True
                     )
                 )
     
@@ -291,6 +300,13 @@ class VideoPipeline:
                     source_channel=source_channel,
                     source_url=source_url,
                     tags=enriched.get("tags", "").split()
+                )
+
+                # 2026 Golden Rule #4: Generate polarizing binary debate question for pinned comment
+                pinned_debate = generate_debate_comment(
+                    title=viral_title,
+                    streamer_name=source_channel,
+                    summary=cand.get("text", "")
                 )
     
                 clip_record = {
@@ -314,6 +330,7 @@ class VideoPipeline:
                     "subtitles_path": ass_path,
                     "tags": enriched.get("tags", "#shorts #reels"),
                     "caption": proper_description,
+                    "debate_comment": pinned_debate,
                     "status": "READY"
                 }
     

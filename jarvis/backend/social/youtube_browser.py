@@ -232,7 +232,8 @@ class YouTubeBrowserUploader:
         privacy: str = "schedule",
         schedule_time: Optional[str] = None,
         schedule_date: Optional[str] = None,
-        headless: bool = False
+        headless: bool = False,
+        debate_comment: Optional[str] = None
     ) -> Dict[str, Any]:
         """Automate full upload workflow on YouTube Studio in a dedicated Proactor loop thread."""
         return await asyncio.to_thread(
@@ -245,7 +246,8 @@ class YouTubeBrowserUploader:
             privacy,
             schedule_time,
             schedule_date,
-            headless
+            headless,
+            debate_comment
         )
 
     async def _upload_video_impl(
@@ -257,7 +259,8 @@ class YouTubeBrowserUploader:
         privacy: str = "schedule",
         schedule_time: Optional[str] = None,
         schedule_date: Optional[str] = None,
-        headless: bool = False
+        headless: bool = False,
+        debate_comment: Optional[str] = None
     ) -> Dict[str, Any]:
         """Automate full upload workflow on YouTube Studio."""
         video_file = Path(video_path).resolve()
@@ -702,6 +705,18 @@ class YouTubeBrowserUploader:
                 logger.info(f"Browser upload complete: {video_url or 'Published'}")
                 security_guard.log_event("YOUTUBE_BROWSER_UPLOAD", f"Uploaded video '{title}': {video_url}", "SUCCESS")
 
+                # 2026 Golden Rule #4: Deploy Pinned Debate Comment within 60s of public release
+                if video_url and privacy.lower() == "public":
+                    try:
+                        comment_to_post = debate_comment
+                        if not comment_to_post:
+                            from jarvis.backend.video.metadata_generator import generate_debate_comment
+                            comment_to_post = generate_debate_comment(title=title)
+                        if comment_to_post:
+                            await self._post_and_pin_youtube_comment(page, video_url, comment_to_post)
+                    except Exception as de_err:
+                        logger.debug(f"YouTube debate pin pass: {de_err}")
+
                 try:
                     await context.close()
                 except Exception:
@@ -726,6 +741,49 @@ class YouTubeBrowserUploader:
                     "error": str(e),
                     "method": "browser_automation"
                 }
+
+    async def _post_and_pin_youtube_comment(self, page: Page, video_url: str, comment_text: str):
+        """Navigate to YouTube video, post the polarizing debate question, and pin it to the top (Golden Rule #4)."""
+        try:
+            logger.info(f"📌 [Pinned Debate Comment] Navigating to {video_url} to deploy debate question...")
+            await page.goto(video_url, timeout=30000, wait_until="domcontentloaded")
+            await asyncio.sleep(3.0)
+
+            # Trigger comment box
+            comment_box = page.locator("#placeholder-area, #simplebox-placeholder, ytd-comment-simplebox-renderer").first
+            if await comment_box.is_visible(timeout=5000):
+                await comment_box.click(force=True)
+                await asyncio.sleep(1.0)
+
+                input_box = page.locator("#contenteditable-root, ytd-commentbox #contenteditable-root, div[contenteditable='true']").first
+                if await input_box.is_visible(timeout=3000):
+                    await input_box.click(force=True)
+                    await input_box.type(comment_text, delay=20)
+                    await asyncio.sleep(0.5)
+
+                    submit_btn = page.locator("#submit-button, ytd-button-renderer#submit-button, button[aria-label*='Comment' i]").first
+                    if await submit_btn.is_visible(timeout=3000):
+                        await submit_btn.click(force=True)
+                        logger.info(f"💬 [Pinned Debate Comment] Posted: '{comment_text}'")
+                        await asyncio.sleep(2.0)
+
+                        # Click action menu (3 dots) on the comment and pin
+                        more_btn = page.locator("ytd-comment-view-model #action-menu yt-icon-button, ytd-comment-thread-renderer #action-menu yt-icon-button").first
+                        if await more_btn.is_visible(timeout=5000):
+                            await more_btn.click(force=True)
+                            await asyncio.sleep(0.8)
+
+                            pin_btn = page.locator("ytd-menu-service-item-renderer:has-text('Pin'), tp-yt-paper-item:has-text('Pin')").first
+                            if await pin_btn.is_visible(timeout=3000):
+                                await pin_btn.click(force=True)
+                                await asyncio.sleep(0.8)
+
+                                conf_pin = page.locator("ytcp-button:has-text('Pin'), yt-button-renderer:has-text('Pin'), #confirm-button").first
+                                if await conf_pin.is_visible(timeout=3000):
+                                    await conf_pin.click(force=True)
+                                    logger.info("📌 Successfully pinned debate comment on YouTube!")
+        except Exception as e:
+            logger.debug(f"YouTube comment pin execution pass: {e}")
 
 
 youtube_browser = YouTubeBrowserUploader()

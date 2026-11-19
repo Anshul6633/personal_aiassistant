@@ -297,22 +297,18 @@ class InstagramBrowserUploader:
             logger.info(f"🎉 Instagram Reel successfully published! {reel_url}")
 
             # Algorithmic Reach Multiplier: Immediately post a conversation-starter comment to ignite early engagement
+            # 2026 Golden Rule #4: Deploy Pinned Debate Comment immediately upon publishing
             try:
-                import random
-                comment_hooks = [
-                    "Who had the better reaction? 🇮🇳 for Carry, ⚡ for Speed! Drop your rating 1-10 👇",
-                    "Wait for Part 2! Did you spot the secret detail at 0:12? 👀 Drop your thoughts!",
-                    "Drop a W or L in the comments! Did he overreact or was he right? 👇🔥",
-                    "Follow @clipperwithout for daily uncut GTA 6 stream moments & live clips! 🚀",
-                    "Tag your duo who would choke this mission immediately 😂💀",
-                    "Rate this reaction from 1 to 10 below! Best comment gets pinned 🔥👀",
-                    "Which streamer should we clip next? Speed, Carry, or Kai Cenat? Vote below 👇",
-                    "Send this to your friend who drives like this 💀🚗",
-                    "Is GTA 6 going to top this? Drop your thoughts! 🚀💥"
-                ]
-                first_comment = random.choice(comment_hooks)
-                cl.media_comment(media.id, first_comment)
-                logger.info(f"💬 [Reach Multiplier] Automated first comment posted: '{first_comment}'")
+                from jarvis.backend.video.metadata_generator import generate_debate_comment
+                first_comment = generate_debate_comment(title=video_file.stem, summary=caption)
+                c_obj = cl.media_comment(media.id, first_comment)
+                logger.info(f"💬 [Golden Rule #4 Debate Hook] Automated first comment posted: '{first_comment}'")
+                try:
+                    if hasattr(cl, "comment_pin") and hasattr(c_obj, "pk"):
+                        cl.comment_pin(media.id, c_obj.pk)
+                        logger.info(f"📌 [Pinned Debate Comment] Successfully pinned comment {c_obj.pk} on Reel!")
+                except Exception as pe:
+                    logger.debug(f"Instagram comment pin note: {pe}")
             except Exception as ce:
                 logger.warning(f"Could not post reach multiplier comment: {ce}")
 

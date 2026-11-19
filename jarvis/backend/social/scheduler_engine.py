@@ -491,7 +491,8 @@ class YouTubeSchedulerEngine:
                 privacy=target_privacy,
                 schedule_time=sched_time_str if target_privacy == "schedule" else None,
                 schedule_date=sched_date_str if target_privacy == "schedule" else None,
-                headless=False
+                headless=False,
+                debate_comment=item.get("debate_comment")
             )
 
             if not upload_res.get("success"):

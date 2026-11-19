@@ -53,22 +53,24 @@ def generate_proper_youtube_description(
     is_football = any(k in combined_text for k in ["football", "soccer", "goal", "ronaldo", "messi", "mbappe", "bellingham", "yamal", "haaland"])
 
     if is_football:
-        cta_question = "💬 Comment below: Who is the greatest player in football history?"
+        cta_question = "💬 DEBATE: Who is the greatest player in history? Comment 🐐 for CR7 or 👑 for Messi!"
         channel_display = channel_name
         base_tags = ["Shorts", "YouTubeShorts", "Football", "Soccer", "Viral", "Trending"]
         bottom_tags = "#shorts #viral #trending #football #soccer #fyp #foryou #sports"
     else:
         # Gaming / GTA 6 / Streamer high-growth niche
-        cta_question = "💬 Comment below: What would you do in this situation? Drop a W or L! 👇"
+        streamer_label = source_channel or "he"
+        cta_question = f"💬 DEBATE: Did {streamer_label} throw on purpose or was that pure luck? Comment 🔥 for 200 IQ or 💀 for LUCK! 👇"
         channel_display = "Viral Gaming Hub" if "football" in channel_name.lower() else channel_name
-        base_tags = ["Shorts", "YouTubeShorts", "GTA6", "GTA", "Gaming", "GamingShorts", "ViralGaming", "CarryMinati", "Trending", "Clutch"]
-        bottom_tags = "#shorts #gta6 #gaming #gamingshorts #viral #trending #fyp #foryou #carryminati"
+        base_tags = ["Shorts", "YouTubeShorts", "GTA6", "GTA", "Gaming", "GamingShorts", "ViralGaming", "CarryMinati", "IShowSpeed", "Trending", "Clutch"]
+        bottom_tags = "#shorts #gta6 #gaming #gamingshorts #viral #trending #fyp #foryou #carryminati #ishowspeed"
 
-    # Engagement CTAs
+    # Engagement CTAs (SPR Multiplier + Pinned Comment Prompt)
     desc_lines.extend([
         "🔥 ENJOYED THIS EDIT? SUPPORT THE CHANNEL:",
-        f"🔔 SUBSCRIBE to @{channel_display.replace(' ', '')} for daily high-energy viral gaming moments!",
-        "👍 Hit LIKE if this was an absolute clutch!",
+        "✈️ SENDS-PER-REACH: Send this to that one friend who drives like this in GTA 💀🚗",
+        "📌 CHECK PINNED COMMENT: Cast your vote in the live debate below!",
+        f"🔔 SUBSCRIBE to @{channel_display.replace(' ', '')} for daily high-energy viral stream moments!",
         cta_question,
         ""
     ])
@@ -156,19 +158,19 @@ def generate_viral_instagram_caption(
         lines.append(summary.strip())
         lines.append("")
 
-    # 3. High-Conversion Engagement & Share trigger (Sends Per Reach Multiplier)
+    # 3. High-Conversion Engagement & Share trigger (Sends Per Reach Multiplier - Golden Rule #3)
     dm_prompts = [
-        "🚀 Send this to a friend who always fails the mission! 💀",
-        "🚀 Send this to your friend who drives like this in GTA 💀🚗",
-        "Tag your duo who would choke this mission immediately 😂👇",
+        "✈️ Send this to that one friend who drives like this in GTA 💀🚗",
+        "✈️ Share this to your duo who chokes every clutch 😭👇",
+        "✈️ Send this to the group chat without saying anything 😂💀",
+        "✈️ Tag that friend who needs to see this right now 💀👇",
         "Bro really thought he had 200 IQ in GTA 6 😭 W or L move? 👇",
-        "Send this to the group chat... this had me crying 😭💀",
         "Unreal clutch from the stream! Rate this 1-10 below! 🔥🚀"
     ]
     lines.extend([
         random.choice(dm_prompts),
-        "👇 Drop a W or L in the comments!",
-        "⚡ Follow @clipperwithout for daily viral gaming moments!"
+        "📌 CAST YOUR VOTE IN PINNED COMMENT! 👇",
+        "⚡ Follow @clipperwithout for daily viral stream moments!"
     ])
     lines.append("")
 
@@ -203,5 +205,44 @@ def generate_viral_instagram_caption(
     lines.append(tag_str)
 
     return "\n".join(lines)
+
+
+def generate_debate_comment(
+    title: str,
+    streamer_name: Optional[str] = None,
+    summary: Optional[str] = None
+) -> str:
+    """Generate high-friction binary debate question for pinned comment (Golden Rule #4).
+    
+    Deploys a polarizing question within 60s of publishing to trigger 50+ immediate comments,
+    accelerating early algorithmic velocity.
+    """
+    streamer = streamer_name or "he"
+    clean_title = re.sub(r"#(shorts|reels|gta6|gaming|viral)", "", title, flags=re.IGNORECASE).strip()
+
+    combined = f"{title} {summary or ''}".lower()
+    if "clutch" in combined or "win" in combined:
+        templates = [
+            f"Was this a 200 IQ play or 100% pure luck? Drop a 🧠 for 200 IQ or 🤡 for LUCK! 👇",
+            f"Could you pull this off under pressure? Comment 🏆 for YES or 💀 for NO!",
+            f"Did {streamer} read his mind or get lucky? Comment 🔥 for PRO or 🧢 for CAP!"
+        ]
+    elif "fail" in combined or "funny" in combined or "wasted" in combined or "scream" in combined:
+        templates = [
+            f"Did {streamer} throw the game on purpose? 💀 Comment 🔥 for YES or 💀 for NO!",
+            f"Who sold harder here? Comment 🎮 for {streamer} or 🤡 for teammate!",
+            f"Did he overreact or was this 100% justified? Comment 😂 for VALID or 🧢 for DRAMA!"
+        ]
+    else:
+        templates = [
+            f"Did {streamer} throw the game on purpose? 💀 Comment 🔥 for YES or 💀 for NO!",
+            f"Was this a 200 IQ play or pure luck? Drop a 🧠 for 200 IQ or 🤡 for LUCK!",
+            f"Could you survive this in GTA 6? Comment 🏆 for YES or 💀 for NO!",
+            f"Rate this moment 1 to 10 below! Best comment gets pinned 📌👇",
+            f"Is {streamer} the GOAT for this? Comment 🐐 for YES or 🗑️ for NO!"
+        ]
+
+    return random.choice(templates)
+
 
 

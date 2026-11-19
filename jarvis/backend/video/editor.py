@@ -228,6 +228,8 @@ class VideoEditor:
 
         # Conversion Engine: High-contrast subscriber prompt (safe zone bottom-center)
         sub_prompt_line = "Style: SubPrompt,Arial,30,&H00FFFFFF,&H0000FFFF,&H00111111,&H90000000,-1,0,0,0,100,100,0,0,3,4,0,2,40,40,160,1\n"
+        # Golden Rule #3: Sends-Per-Reach (SPR) Multiplier (Top ranking signal for Meta/YouTube non-follower distribution)
+        spr_prompt_line = "Style: SharePrompt,Arial,32,&H0000FFFF,&H00FFFFFF,&H00111111,&H90000000,-1,0,0,0,100,100,0,0,3,4,0,2,40,40,160,1\n"
 
         header = f"""[Script Info]
 ScriptType: v4.00+
@@ -238,7 +240,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{preset['font']},{preset['size']},{preset['primary']},{preset['secondary']},{preset['outline_col']},{preset['back_col']},{preset['bold']},0,0,0,100,100,0,0,1,{preset['outline']},{preset['shadow']},2,60,60,{margin_v},1
-{hook_style_line}{sub_prompt_line}
+{hook_style_line}{sub_prompt_line}{spr_prompt_line}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -296,11 +298,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             h_end_str = f"{h_s // 3600}:{(h_s % 3600) // 60:02d}:{h_s % 60:02d}.{h_cs:02d}"
             events.insert(0, f"Dialogue: 1,0:00:00.00,{h_end_str},HookHeader,,0,0,0,,{{\\fad(200,0)}}{clean_hook.upper()}")
 
-        # Algorithmic Subscriber & Follower Conversion Prompt (at second 7.5 to 11.0)
+        # Algorithmic Retention & Conversion Triggers (Golden Rule #3: SPR Multiplier)
         clip_dur = clip_end - clip_start
-        if clip_dur >= 12.0:
-            cta_start = "0:00:07.50"
-            cta_end = "0:00:11.00"
+        if clip_dur >= 10.0:
+            import random
+            spr_hooks = [
+                "✈️ SEND TO THAT FRIEND WHO DRIVES LIKE THIS 💀",
+                "✈️ TAG YOUR DUO WHO ALWAYS CHOKES 😭",
+                "✈️ SEND THIS TO THE GC WITHOUT CONTEXT 💀",
+                "✈️ SHARE TO SOMEONE WHO NEEDS TO SEE THIS 😂"
+            ]
+            chosen_spr = random.choice(spr_hooks)
+            spr_start = "0:00:06.50"
+            spr_end = "0:00:10.50"
+            spr_markup = f"{{\\fad(250,250)\\c&H0000FFFF&\\3c&H00111111&\\b1}}{chosen_spr}"
+            events.append(f"Dialogue: 2,{spr_start},{spr_end},SharePrompt,,0,0,0,,{spr_markup}")
+
+        if clip_dur >= 18.0:
+            cta_start = "0:00:12.50"
+            cta_end = "0:00:16.00"
             cta_text = "{\\fad(250,250)\\c&H00FFFFFF&\\3c&H00111111&\\b1}🔔 FOLLOW / SUB FOR PART 2"
             events.append(f"Dialogue: 2,{cta_start},{cta_end},SubPrompt,,0,0,0,,{cta_text}")
 
@@ -317,20 +333,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         end_time: float,
         output_name: str,
         subtitles_ass: Optional[str] = None,
-        trim_silence: bool = False,
+        trim_silence: bool = True,
         crop_mode: str = "fill",
         add_bg_music: bool = True,
         bg_music_path: Optional[str] = None,
         hook_title: Optional[str] = None,
-        streamer_name: Optional[str] = None
+        streamer_name: Optional[str] = None,
+        inject_0s_impact: bool = True
     ) -> Dict[str, str]:
         """Cut video, re-frame to 1080x1920 (9:16), burn subtitles, duck trending background music, and normalize audio.
 
-        Args:
-            crop_mode: 'fill' (full 9:16 edge-to-edge frame, NO background bars) or
-                       'blur' (centered 16:9 box with blurred mirror background).
-            add_bg_music: Whether to mix trending background music (Phonk/Trap/Synthwave).
-            bg_music_path: Explicit path to music track, or None to auto-select from trending library.
+        Implements 2026 Golden Rules of Short-Form Retention:
+        1. 0.0s Climax Injection with 0.5s sub-bass whoosh drop & optical shock flash.
+        2. Audio-first seamless loop crossfade (<0.08s tail) for >115% APV.
+        3. Dynamic on-screen SPR (Sends-Per-Reach) multiplier prompts.
+        4. High-CTR 3D curiosity cover generation.
+        5. Aggressive dead air removal (cuts all silences >0.8s).
         """
         duration = end_time - start_time
         out_mp4 = str(REELS_DIR / f"{output_name}.mp4")
@@ -369,16 +387,31 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # Full 9:16 edge-to-edge frame fill (NO background bars, 100% immersive) with Lanczos + Unsharp
             filter_complex = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,unsharp=3:3:0.6:3:3:0.0[base]"
 
-        final_video_label = "[base]"
+        # Golden Rule #1: 0.0s Climax Optical Shock Flash (stops the scroll in first 150ms)
+        if inject_0s_impact:
+            filter_complex += ";[base]eq=brightness='if(lt(t,0.15), 0.10*(1-t/0.15), 0)':contrast='if(lt(t,0.15), 1.15*(1-t/0.15)+1.0, 1.0)'[shock]"
+            curr_v_label = "[shock]"
+        else:
+            curr_v_label = "[base]"
+
+        final_video_label = curr_v_label
         if subtitles_ass and Path(subtitles_ass).exists():
             escaped_sub = str(Path(subtitles_ass).resolve()).replace("\\", "/").replace(":", "\\:")
-            filter_complex += f";[base]ass='{escaped_sub}'[outv]"
+            filter_complex += f";{curr_v_label}ass='{escaped_sub}'[outv]"
             final_video_label = "[outv]"
 
-        # Mastering Audio: -14 LUFS (Optimal algorithm loudness for YouTube Shorts & Reels) + Vocal Clarity Boost
+        # Golden Rule #5: Aggressive Dead Air Removal (cut pauses > 0.8s) + -14 LUFS Mastering + Rule #2 Seamless Loop Tail Fade
         audio_filter = "highpass=f=75,equalizer=f=2800:width_type=o:width=1.5:g=2.5,loudnorm=I=-14:TP=-1.0:LRA=7"
         if trim_silence:
-            audio_filter = "silenceremove=stop_periods=-1:stop_duration=1.2:stop_threshold=-35dB," + audio_filter
+            audio_filter = "silenceremove=stop_periods=-1:stop_duration=0.8:stop_threshold=-35dB," + audio_filter
+        
+        # Audio-first seamless loop crossfade (avoids click/pop on replay)
+        tail_st = max(0.2, duration - 0.08)
+        audio_filter += f",afade=t=out:st={tail_st:.2f}:d=0.08"
+
+        # Check for Golden Rule #1 0.5s sub-bass whoosh drop SFX
+        sfx_drop_path = Path("jarvis/assets/sfx/whoosh_impact_drop.wav")
+        has_whoosh_sfx = bool(inject_0s_impact and sfx_drop_path.exists())
 
         # Auto-resolve trending background music track
         if add_bg_music and not bg_music_path:
@@ -389,23 +422,42 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 bg_music_path = None
 
         has_bg_music = bool(bg_music_path and Path(bg_music_path).exists())
+
+        input_args = ["-ss", str(start_time), "-t", str(duration), "-i", source_video]
+        curr_in_idx = 1
+
+        bgm_idx = None
         if has_bg_music:
+            bgm_idx = curr_in_idx
+            input_args.extend(["-stream_loop", "-1", "-ss", "0", "-t", str(duration), "-i", str(bg_music_path)])
+            curr_in_idx += 1
+
+        sfx_idx = None
+        if has_whoosh_sfx:
+            sfx_idx = curr_in_idx
+            input_args.extend(["-ss", "0", "-t", "0.55", "-i", str(sfx_drop_path)])
+            curr_in_idx += 1
+
+        # Assemble Audio Filtergraph Branches
+        current_vox = "[0:a]"
+        if sfx_idx is not None:
+            filter_complex += f";[{sfx_idx}:a]volume=1.25[sfx];[{current_vox[1:-1]}][sfx]amix=inputs=2:duration=first:dropout_transition=0[vox_sfx]"
+            current_vox = "[vox_sfx]"
+
+        if bgm_idx is not None:
             st_out = max(0.5, duration - 1.0)
             filter_complex += (
-                f";[1:a]volume=0.13,afade=t=in:st=0:d=0.5,afade=t=out:st={st_out:.2f}:d=1.0[bgm];"
-                f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2,"
+                f";[{bgm_idx}:a]volume=0.13,afade=t=in:st=0:d=0.5,afade=t=out:st={st_out:.2f}:d=1.0[bgm];"
+                f"{current_vox}[bgm]amix=inputs=2:duration=first:dropout_transition=2,"
                 f"{audio_filter}[outa]"
             )
             final_audio_label = "[outa]"
-            input_args = [
-                "-ss", str(start_time), "-t", str(duration), "-i", source_video,
-                "-stream_loop", "-1", "-ss", "0", "-t", str(duration), "-i", str(bg_music_path)
-            ]
         else:
-            final_audio_label = "0:a?"
-            input_args = [
-                "-ss", str(start_time), "-t", str(duration), "-i", source_video
-            ]
+            if sfx_idx is not None:
+                filter_complex += f";{current_vox}{audio_filter}[outa]"
+                final_audio_label = "[outa]"
+            else:
+                final_audio_label = "0:a?"
 
         cmd = [
             self.ffmpeg,
@@ -423,7 +475,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-c:a", "aac",
             "-b:a", "256k",
         ]
-        if not has_bg_music:
+        if not has_bg_music and sfx_idx is None:
             cmd.extend(["-af", audio_filter])
         cmd.append(out_mp4)
 

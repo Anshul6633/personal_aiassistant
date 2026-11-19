@@ -795,7 +795,8 @@ class LivestreamClipperManager:
                             tags=active_tags,
                             privacy="schedule",
                             schedule_time=sched_time_str,
-                            schedule_date=sched_date_str
+                            schedule_date=sched_date_str,
+                            debate_comment=clip.get("debate_comment")
                         )
                         if not upload_res.get("success"):
                             raise RuntimeError(upload_res.get("error") or "YouTube Studio browser automation schedule failed")

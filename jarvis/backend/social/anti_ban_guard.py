@@ -125,17 +125,19 @@ class AntiBanGuard:
         platform: str = "instagram"
     ) -> str:
         """Create high-converting, non-repetitive captions to avoid algorithmic spam classification."""
+        # 2026 Golden Retention Rules: SPR Multiplier + Pinned Debate Prompt
         hooks = [
-            f"Send this to your friend who drives like this in GTA 💀🚗",
-            f"Tag your duo who would choke this mission immediately 😂👇",
+            f"✈️ Send this to that one friend who drives like this in GTA 💀🚗",
+            f"✈️ Tag your duo who would choke this clutch immediately 😂👇",
+            f"✈️ Send this to the group chat without saying a word 😭💀",
+            f"✈️ Tag that friend who needs to see this right now 💀👇",
             f"Bro really thought he had 200 IQ in GTA 6 😭 W or L move? 👇",
-            f"Watch till the end! {credits_name} completely lost it here 🤯🔥",
-            f"Send this to the group chat... this had me crying 😭💀",
-            f"Unreal clutch from @{credits_name}! Rate this from 1-10 below! 🔥🚀"
+            f"Watch till the end! {credits_name} completely lost his mind here 🤯🔥"
         ]
         selected_hook = random.choice(hooks)
+        debate_callout = "📌 CAST YOUR VOTE IN PINNED COMMENT BELOW! 👇"
 
-        # Instagram 2025/2026 strict cap: 3 to 5 hyper-targeted niche hashtags to prevent spam demotion
+        # Instagram 2026 strict cap: 3 to 5 hyper-targeted niche hashtags to maximize reach
         c_lower = credits_name.lower()
         if "speed" in c_lower:
             hashtags_pool = ["#ishowspeed", "#speed", "#speedlive", "#gta6", "#gaming", "#viralreels", "#gamingclips"]
@@ -151,18 +153,20 @@ class AntiBanGuard:
             return (
                 f"{base_title}\n\n"
                 f"{selected_hook}\n\n"
+                f"{debate_callout}\n\n"
                 f"👑 Credits: {credits_name} ({broadcaster})\n"
                 f"🔗 Stream: {stream_url}\n\n"
-                f"Follow for daily viral gaming highlights!\n\n"
+                f"⚡ Follow @clipperwithout for daily viral gaming highlights!\n\n"
                 f"{selected_tags}"
             )
         else:
             return (
                 f"{base_title}\n\n"
                 f"{selected_hook}\n\n"
+                f"{debate_callout}\n\n"
                 f"🎮 Stream: {stream_url}\n"
                 f"👑 Credits to {credits_name}: {broadcaster}\n\n"
-                f"Subscribe for more epic gaming shorts!\n\n"
+                f"🔔 Subscribe for daily high-energy stream moments!\n\n"
                 f"{selected_tags}"
             )
 

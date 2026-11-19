@@ -385,6 +385,75 @@ export const ViralResearch: React.FC = () => {
         </div>
       </div>
 
+      {/* 2026 Golden Retention Rules Engine */}
+      <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900/90 to-purple-950/40 border border-purple-500/40 shadow-xl font-mono text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-md bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold text-xs flex items-center gap-1.5 shadow-sm">
+              <Zap className="w-3.5 h-3.5 text-purple-400" />
+              2026 GOLDEN RULES OF SHORT-FORM RETENTION
+            </span>
+            <span className="text-slate-400 text-[11px]">Algorithmic Multipliers Deployed in Engine</span>
+          </div>
+          <span className="text-emerald-400 font-bold text-[11px] flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            100% AUTOMATED & ACTIVE
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+            <div className="text-[11px] font-bold text-cyan-300 flex items-center gap-1.5 mb-1">
+              <span>⚡ 0.0s CLIMAX INJECTION</span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Zero intros. Peak scream/action on frame 0.0s + 0.5s sub-bass drop/whoosh halts scroll.
+            </p>
+            <div className="mt-2 text-[10px] font-bold text-emerald-400">STATUS: ACTIVE</div>
+          </div>
+
+          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+            <div className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5 mb-1">
+              <span>🔁 AUDIO-FIRST LOOP</span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Cut so final sentence clause flows seamlessly into frame 0. &lt;0.08s tail crossfade (&gt;115% APV).
+            </p>
+            <div className="mt-2 text-[10px] font-bold text-emerald-400">STATUS: ACTIVE</div>
+          </div>
+
+          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+            <div className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5 mb-1">
+              <span>✈️ SPR MULTIPLIER</span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Meta #1 non-follower ranking signal: DM shares. 'Tag that friend who drives like this' (3x reach).
+            </p>
+            <div className="mt-2 text-[10px] font-bold text-emerald-400">STATUS: ACTIVE</div>
+          </div>
+
+          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+            <div className="text-[11px] font-bold text-purple-300 flex items-center gap-1.5 mb-1">
+              <span>📌 PINNED DEBATES</span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Polarizing binary questions pinned within 60s ('Did Speed throw? 🔥 YES / 💀 NO').
+            </p>
+            <div className="mt-2 text-[10px] font-bold text-emerald-400">STATUS: ACTIVE</div>
+          </div>
+
+          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+            <div className="text-[11px] font-bold text-rose-300 flex items-center gap-1.5 mb-1">
+              <span>✂️ ZERO DEAD AIR</span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Aggressive silence removal cuts pauses &gt; 0.8s. Rapid-fire vocal rhythm + -14 LUFS mastering.
+            </p>
+            <div className="mt-2 text-[10px] font-bold text-emerald-400">STATUS: ACTIVE</div>
+          </div>
+        </div>
+      </div>
+
       {/* 8-Hour Long-Form Compilations & Studio Thumbnails Showcase */}
       <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-amber-500/30 shadow-lg">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
