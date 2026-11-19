@@ -272,7 +272,9 @@ class VideoPipeline:
                 # 1. 0.0s Climax Injection with 0.5s sub-bass whoosh drop & optical shock flash
                 # 2. Seamless audio-first loop crossfade (<0.08s tail)
                 # 3. Dynamic on-screen SPR (Sends-Per-Reach) multiplier prompts
+                # 4. AI Viral Voiceover Injection (0.0s curiosity hook + audio ducking)
                 # 5. Aggressive dead air removal (cuts all silences >0.8s)
+                use_vo = bool(cand.get("score", 80) >= 82 or idx % 2 == 0)
                 rendered = await loop.run_in_executor(
                     None,
                     lambda: video_editor.render_vertical_clip(
@@ -287,7 +289,9 @@ class VideoPipeline:
                         bg_music_path=None,
                         hook_title=viral_title,
                         streamer_name=source_channel,
-                        inject_0s_impact=True
+                        inject_0s_impact=True,
+                        inject_voiceover=use_vo,
+                        voiceover_type="hook"
                     )
                 )
     

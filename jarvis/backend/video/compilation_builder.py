@@ -11,13 +11,16 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from jarvis.backend.config.settings import settings
+from jarvis.backend.config.storage_router import storage_router
 from jarvis.backend.database.db import get_db_connection
 
 logger = logging.getLogger("JARVIS.CompilationBuilder")
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-COMPILATIONS_DIR = WORKSPACE_ROOT / "jarvis" / "output" / "compilations"
-COMPILATIONS_DIR.mkdir(parents=True, exist_ok=True)
+def get_compilations_dir() -> Path:
+    return storage_router.get_output_dir("compilations")
+
+COMPILATIONS_DIR = get_compilations_dir()
 
 
 class CompilationBuilder:

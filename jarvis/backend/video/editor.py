@@ -15,13 +15,26 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from jarvis.backend.config.settings import settings, OUTPUT_DIR
+from jarvis.backend.config.storage_router import storage_router
 
 logger = logging.getLogger("JARVIS.Editor")
 
-REELS_DIR = OUTPUT_DIR / "reels"
-SHORTS_DIR = OUTPUT_DIR / "shorts"
-THUMBS_DIR = OUTPUT_DIR / "thumbnails"
-SUBS_DIR = OUTPUT_DIR / "subtitles"
+def get_reels_dir() -> Path:
+    return storage_router.get_output_dir("reels")
+
+def get_shorts_dir() -> Path:
+    return storage_router.get_output_dir("shorts")
+
+def get_thumbs_dir() -> Path:
+    return storage_router.get_output_dir("thumbnails")
+
+def get_subs_dir() -> Path:
+    return storage_router.get_output_dir("subtitles")
+
+REELS_DIR = get_reels_dir()
+SHORTS_DIR = get_shorts_dir()
+THUMBS_DIR = get_thumbs_dir()
+SUBS_DIR = get_subs_dir()
 
 # Keywords that trigger dynamic visual pop highlights in subtitles
 EMPHASIS_KEYWORDS = {
@@ -339,7 +352,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         bg_music_path: Optional[str] = None,
         hook_title: Optional[str] = None,
         streamer_name: Optional[str] = None,
-        inject_0s_impact: bool = True
+        inject_0s_impact: bool = True,
+        inject_voiceover: bool = False,
+        voiceover_text: Optional[str] = None,
+        voiceover_type: str = "hook",
+        voiceover_lang: str = "en"
     ) -> Dict[str, str]:
         """Cut video, re-frame to 1080x1920 (9:16), burn subtitles, duck trending background music, and normalize audio.
 
@@ -349,10 +366,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         3. Dynamic on-screen SPR (Sends-Per-Reach) multiplier prompts.
         4. High-CTR 3D curiosity cover generation.
         5. Aggressive dead air removal (cuts all silences >0.8s).
+        6. AI Viral Voiceover Injection (0.0s hooks & follower growth CTAs).
+        7. Multi-Drive storage overflow (automatic fallback to secondary high-capacity drive).
         """
         duration = end_time - start_time
-        out_mp4 = str(REELS_DIR / f"{output_name}.mp4")
-        out_thumb = str(THUMBS_DIR / f"{output_name}_thumb.jpg")
+        out_mp4 = str(get_reels_dir() / f"{output_name}.mp4")
+        out_thumb = str(get_thumbs_dir() / f"{output_name}_thumb.jpg")
 
         if crop_mode == "blur":
             filter_complex = (
@@ -438,8 +457,33 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             input_args.extend(["-ss", "0", "-t", "0.55", "-i", str(sfx_drop_path)])
             curr_in_idx += 1
 
+        # Auto-synthesize viral hook or follower CTA voiceover if requested
+        vo_idx = None
+        vo_dur = 0.0
+        if inject_voiceover:
+            try:
+                from jarvis.backend.video.viral_voiceover_engine import viral_voiceover_engine
+                vo_res = viral_voiceover_engine.generate_voiceover_sync(
+                    text=voiceover_text,
+                    voiceover_type=voiceover_type,
+                    language=voiceover_lang
+                )
+                if vo_res.get("success") and Path(vo_res.get("audio_path", "")).exists():
+                    vo_idx = curr_in_idx
+                    vo_dur = min(float(vo_res.get("duration", 2.5)), duration)
+                    input_args.extend(["-ss", "0", "-t", str(vo_dur), "-i", str(vo_res["audio_path"])])
+                    curr_in_idx += 1
+            except Exception as e:
+                logger.warning(f"Voiceover injection skipped: {e}")
+
         # Assemble Audio Filtergraph Branches
         current_vox = "[0:a]"
+
+        # If voiceover is present, duck main game audio by -7dB during the voiceover
+        if vo_idx is not None:
+            filter_complex += f";[{current_vox[1:-1]}]volume=enable='between(t,0,{vo_dur:.2f})':volume='-7dB':eval=frame[ducked_main];[{vo_idx}:a]volume=1.35[vo_boost];[ducked_main][vo_boost]amix=inputs=2:duration=first:dropout_transition=1[vox_with_vo]"
+            current_vox = "[vox_with_vo]"
+
         if sfx_idx is not None:
             filter_complex += f";[{sfx_idx}:a]volume=1.25[sfx];[{current_vox[1:-1]}][sfx]amix=inputs=2:duration=first:dropout_transition=0[vox_sfx]"
             current_vox = "[vox_sfx]"

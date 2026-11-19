@@ -2272,6 +2272,42 @@ async def api_send_test_alert():
     return res
 
 
+# --- Storage Router & Multi-Drive Endpoints ---
+
+@app.get("/api/storage/status")
+async def api_storage_status():
+    """Return storage status across all drives (C:, D:) with overflow status."""
+    from jarvis.backend.config.storage_router import storage_router
+    return storage_router.get_all_drives_status()
+
+
+@app.post("/api/storage/migrate")
+async def api_storage_migrate(dry_run: bool = False):
+    """Safely migrate heavy media from Drive C: to Drive D: to immediately liberate C: space."""
+    from jarvis.backend.config.storage_router import storage_router
+    return storage_router.migrate_idle_media_to_secondary(dry_run=dry_run)
+
+
+# --- Viral Voiceover Endpoints ---
+
+class VoiceoverGenerateRequest(BaseModel):
+    text: Optional[str] = None
+    voiceover_type: str = "hook"  # 'hook' or 'cta'
+    language: str = "en"
+
+
+@app.post("/api/voiceover/generate")
+async def api_voiceover_generate(req: VoiceoverGenerateRequest):
+    """Generate viral 0.0s hook or follower CTA voiceover audio."""
+    from jarvis.backend.video.viral_voiceover_engine import viral_voiceover_engine
+    res = await viral_voiceover_engine.generate_voiceover_audio(
+        text=req.text,
+        voiceover_type=req.voiceover_type,
+        language=req.language
+    )
+    return res
+
+
 # --- Production Single-Page-Application (SPA) Catch-All Route ---
 
 @app.get("/{full_path:path}")

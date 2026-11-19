@@ -19,14 +19,17 @@ from typing import Dict, Any, List, Optional
 import yt_dlp
 
 from jarvis.backend.config.settings import OUTPUT_DIR, WORKSPACE_ROOT
+from jarvis.backend.config.storage_router import storage_router
 from jarvis.backend.video.source_manager import source_manager
 from jarvis.backend.video.pipeline import video_pipeline
 from jarvis.backend.core.state import state_manager, AssistantState
 
 logger = logging.getLogger("JARVIS.LivestreamClipper")
 
-LIVESTREAM_DIR = OUTPUT_DIR / "livestreams"
-LIVESTREAM_DIR.mkdir(parents=True, exist_ok=True)
+def get_livestream_dir() -> Path:
+    return storage_router.get_output_dir("livestreams")
+
+LIVESTREAM_DIR = get_livestream_dir()
 
 DEFAULT_LIVE_TOPICS = [
     "live gaming stream 24/7",
