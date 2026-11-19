@@ -407,11 +407,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             filter_complex = "[0:v]scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,unsharp=3:3:0.6:3:3:0.0[base]"
 
         # Golden Rule #1: 0.0s Climax Optical Shock Flash (stops the scroll in first 150ms)
+        # + 2026 World-Class AMOLED Cinematic Color Grading (boosts saturation +12% and contrast +6%)
         if inject_0s_impact:
-            filter_complex += ";[base]eq=brightness='if(lt(t,0.15), 0.10*(1-t/0.15), 0)':contrast='if(lt(t,0.15), 1.15*(1-t/0.15)+1.0, 1.0)'[shock]"
+            filter_complex += ";[base]eq=contrast=1.06:saturation=1.12:gamma=0.98[graded];[graded]eq=brightness='if(lt(t,0.15), 0.10*(1-t/0.15), 0)':contrast='if(lt(t,0.15), 1.15*(1-t/0.15)+1.0, 1.0)'[shock]"
             curr_v_label = "[shock]"
         else:
-            curr_v_label = "[base]"
+            filter_complex += ";[base]eq=contrast=1.06:saturation=1.12:gamma=0.98[graded]"
+            curr_v_label = "[graded]"
 
         final_video_label = curr_v_label
         if subtitles_ass and Path(subtitles_ass).exists():
