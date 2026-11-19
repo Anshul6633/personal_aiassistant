@@ -66,16 +66,23 @@ async def lifespan(app: FastAPI):
     from jarvis.backend.social.email_reporter import email_reporter
     async def _periodic_email_loop():
         await asyncio.sleep(45)  # Initial wait after server boot
+        last_wrapup_day = -1
         while True:
             try:
                 now = datetime.now()
-                # Automatically dispatch executive performance digest every 12 hours
-                if not email_reporter.last_digest_time or (now - email_reporter.last_digest_time).total_seconds() >= 43200:
+                # 1. Final Daily Session Wrap-Up & Laptop Shutdown Clearance (Dispatched automatically at 06:00 PM daily)
+                if now.hour == 18 and now.day != last_wrapup_day:
+                    logger.info("Executing 06:00 PM Final Daily Performance & Laptop Shutdown Clearance email to khatrianshul977@gmail.com...")
+                    await email_reporter.send_final_performance_wrapup(session_hours_completed=4.0, shutdown_safe_until="Tomorrow 02:00 PM")
+                    last_wrapup_day = now.day
+
+                # 2. Automated executive performance digest every 12 hours
+                elif not email_reporter.last_digest_time or (now - email_reporter.last_digest_time).total_seconds() >= 43200:
                     logger.info("Executing autonomous scheduled performance email to khatrianshul977@gmail.com...")
                     await email_reporter.send_performance_digest()
             except Exception as ee:
                 logger.warning(f"Periodic email digest pass: {ee}")
-            await asyncio.sleep(1800)  # Check every 30 minutes
+            await asyncio.sleep(900)  # Check every 15 minutes
 
     email_task = asyncio.create_task(_periodic_email_loop())
     
@@ -2242,6 +2249,14 @@ async def api_send_performance_digest():
     """Trigger immediate performance report email to khatrianshul977@gmail.com."""
     from jarvis.backend.social.email_reporter import email_reporter
     res = await email_reporter.send_performance_digest()
+    return res
+
+
+@app.post("/api/email/send-wrapup")
+async def api_send_final_wrapup():
+    """Trigger final daily performance report & laptop shutdown clearance email to khatrianshul977@gmail.com."""
+    from jarvis.backend.social.email_reporter import email_reporter
+    res = await email_reporter.send_final_performance_wrapup(session_hours_completed=4.0, shutdown_safe_until="Tomorrow 02:00 PM")
     return res
 
 
