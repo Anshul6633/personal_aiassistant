@@ -43,3 +43,7 @@ playwright>=1.48.0
 
 # Batch Ingestion
 gdown>=5.2.0
+
+# Document & Reporting Generation
+python-docx>=1.2.0
+

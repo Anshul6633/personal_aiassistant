@@ -695,18 +695,17 @@ class YouTubeSchedulerEngine:
     def calculate_adaptive_schedule_time(
         self,
         platform: str = "instagram",
-        base_interval_minutes: int = 15,
+        base_interval_minutes: int = 120,
         slot_index: int = 0
     ) -> datetime:
-        """Dynamically compute the next publishing timestamp to maximize algorithmic reach and prevent shadowbans.
+        """Dynamically compute the next publishing timestamp to maximize algorithmic reach and eliminate self-cannibalization.
 
-        Reach-Adaptive Growth Pacing:
-        - Clip #1-2: 15-minute interval (immediate fresh content velocity)
-        - Clip #3: 20-minute interval (enables initial audience seed testing)
-        - Clip #4: 25-minute interval
-        - Clip #5-6: 30-minute interval (prevents feed cannibalization, unlocks FYP/Explore shelves)
-        - Clip #7-8: 40-minute interval
-        - Clip #9+:  45-60 minute interval (steady multi-day catalog cadence)
+        2026 Algorithmic Growth Pacing:
+        - YouTube Shorts: Evaluates swipe-through rate (>75%) & retention (>100% APV) across seed cohorts (50-500 viewers).
+          Requires a 2-3 hour (120-180m) evaluation window. Rapid posting cannibalizes impressions and triggers anti-spam throttling.
+        - Instagram Reels: Primary discovery signal is DM Shares (Sends per Reach), completion, and saves.
+          Requires 2-3 hour spacing to allow non-follower Explore page testing.
+        - Cross-Platform Staggering: 30-45 minute offset between YouTube and Instagram to maximize cross-platform impressions.
         """
         table = "instagram_schedule_queue" if platform.lower() == "instagram" else "youtube_schedule_queue"
         conn = get_db_connection()
@@ -723,20 +722,6 @@ class YouTubeSchedulerEngine:
         conn.close()
 
         now = datetime.now()
-
-        # Progressive reach interval based on queue depth
-        if queued_count <= 1:
-            interval = base_interval_minutes  # 15m
-        elif queued_count == 2:
-            interval = 20
-        elif queued_count == 3:
-            interval = 25
-        elif queued_count in (4, 5):
-            interval = 30
-        elif queued_count in (6, 7):
-            interval = 40
-        else:
-            interval = min(60, 45 + (queued_count - 8) * 5)
 
         # Establish reference anchor timestamp
         if last_queued_time_str:
@@ -756,32 +741,177 @@ class YouTubeSchedulerEngine:
         else:
             ref_dt = now
 
-        target_dt = ref_dt + timedelta(minutes=interval)
+        # Algorithm-Optimal 4-Slot Daily Windows (09:00 AM, 02:00 PM, 06:30 PM, 11:00 PM)
+        from datetime import time as dt_time
+        daily_times = [
+            dt_time(9, 0),    # Morning Asia / US Late Night
+            dt_time(14, 0),   # Midday Europe / Asia Afternoon
+            dt_time(18, 30),  # Evening Europe Prime / US Morning
+            dt_time(23, 0)    # Prime Night US Afternoon & Evening
+        ]
 
-        # Offset successive clips within the same batch so they never share the same minute
+        target_dt = None
+        cur_date = ref_dt.date()
+        for day_offset in range(45):
+            d = cur_date + timedelta(days=day_offset)
+            for t in daily_times:
+                cand = datetime.combine(d, t)
+                if platform.lower() == "instagram":
+                    cand += timedelta(minutes=30)  # 30-minute cross-platform stagger
+                if cand > ref_dt + timedelta(minutes=30) and cand > now + timedelta(minutes=15):
+                    target_dt = cand
+                    break
+            if target_dt:
+                break
+
+        if not target_dt:
+            target_dt = ref_dt + timedelta(hours=4)
+
+        # Batch offset for multiple clips within the same cycle
         if slot_index > 0:
-            target_dt += timedelta(minutes=slot_index * (15 if platform.lower() == "youtube" else 20))
+            cand2 = None
+            cur_date2 = target_dt.date()
+            for day_offset in range(45):
+                d = cur_date2 + timedelta(days=day_offset)
+                for t in daily_times:
+                    cand = datetime.combine(d, t)
+                    if platform.lower() == "instagram":
+                        cand += timedelta(minutes=30)
+                    if cand > target_dt + timedelta(minutes=30):
+                        cand2 = cand
+                        break
+                if cand2:
+                    break
+            target_dt = cand2 or (target_dt + timedelta(hours=4))
 
-        # Ensure target is at least ahead of now
-        min_allowed = now + timedelta(minutes=10 + (slot_index * 15))
-        if target_dt < min_allowed:
-            target_dt = min_allowed
-
-        # YouTube Studio strictly schedules on 15-minute slot intervals (:00, :15, :30, :45)
+        # Format YouTube Studio constraint (strictly 15-minute slot boundary)
         if platform.lower() == "youtube":
             remainder = target_dt.minute % 15
             if remainder != 0:
                 target_dt += timedelta(minutes=(15 - remainder))
             target_dt = target_dt.replace(second=0, microsecond=0)
-            min_yt = now + timedelta(minutes=15 + (slot_index * 15))
-            if target_dt < min_yt:
-                target_dt = min_yt
-                rem = target_dt.minute % 15
-                if rem != 0:
-                    target_dt += timedelta(minutes=(15 - rem))
-                target_dt = target_dt.replace(second=0, microsecond=0)
+        else:
+            target_dt = target_dt.replace(second=0, microsecond=0)
 
         return target_dt
+
+    def schedule_month_algorithmic_cadence(self, days: int = 60) -> Dict[str, Any]:
+        """Schedule all pending YouTube Shorts and Instagram Reels across the 4 daily global prime-time windows for the next 2 months."""
+        from datetime import time as dt_time
+        conn = get_db_connection()
+        cur = conn.cursor()
+        now = datetime.now()
+
+        daily_times = [
+            dt_time(9, 0),    # Morning Asia / US Late Night (09:00 AM)
+            dt_time(14, 0),   # Midday Europe / Asia Afternoon (02:00 PM)
+            dt_time(18, 30),  # Evening Europe Prime / US Morning (06:30 PM)
+            dt_time(23, 0)    # Prime Night US Afternoon & Evening (11:00 PM)
+        ]
+
+        yt_slots = []
+        ig_slots = []
+        current_date = now.date()
+
+        for day_offset in range(days + 30):
+            day = current_date + timedelta(days=day_offset)
+            for t in daily_times:
+                slot_dt = datetime.combine(day, t)
+                if slot_dt > now + timedelta(minutes=15):
+                    yt_slots.append(slot_dt)
+                    ig_slots.append(slot_dt + timedelta(minutes=30))
+
+        # 1. Reschedule YouTube QUEUED items (excluding longform compilations)
+        cur.execute("SELECT id FROM youtube_schedule_queue WHERE status = 'QUEUED' AND drive_file_id != 'LONG_FORM_COMPILATION' ORDER BY scheduled_time ASC")
+        yt_rows = cur.fetchall()
+        yt_updates = []
+        for idx, r in enumerate(yt_rows):
+            if idx < len(yt_slots):
+                yt_updates.append((yt_slots[idx].isoformat(), r["id"]))
+
+        if yt_updates:
+            cur.executemany("UPDATE youtube_schedule_queue SET scheduled_time = ? WHERE id = ?", yt_updates)
+
+        # 2. Reschedule Instagram QUEUED items
+        cur.execute("SELECT id FROM instagram_schedule_queue WHERE status = 'QUEUED' ORDER BY scheduled_time ASC")
+        ig_rows = cur.fetchall()
+        ig_updates = []
+        for idx, r in enumerate(ig_rows):
+            if idx < len(ig_slots):
+                ig_updates.append((ig_slots[idx].isoformat(), r["id"]))
+
+        if ig_updates:
+            cur.executemany("UPDATE instagram_schedule_queue SET scheduled_time = ? WHERE id = ?", ig_updates)
+
+        conn.commit()
+        conn.close()
+
+        logger.info(f"1-Month Algorithmic Cadence: Scheduled {len(yt_updates)} YouTube Shorts and {len(ig_updates)} Instagram Reels into 4 prime daily windows.")
+        return {
+            "success": True,
+            "youtube_count": len(yt_updates),
+            "instagram_count": len(ig_updates),
+            "youtube_first": yt_updates[0][0] if yt_updates else None,
+            "youtube_last": yt_updates[-1][0] if yt_updates else None,
+            "instagram_first": ig_updates[0][0] if ig_updates else None,
+            "instagram_last": ig_updates[-1][0] if ig_updates else None,
+            "daily_cadence": "4 slots/day (09:00 AM, 02:00 PM, 06:30 PM, 11:00 PM)"
+        }
+
+    def reschedule_all_queues_for_algorithm(
+        self,
+        interval_minutes: int = 120,
+        yt_start_offset: int = 30,
+        ig_start_offset: int = 75
+    ) -> Dict[str, Any]:
+        """Reschedule all pending QUEUED items in YouTube and Instagram with 2-hour (120m) algorithmic spacing to eliminate self-cannibalization."""
+        conn = get_db_connection()
+        cur = conn.cursor()
+        now = datetime.now()
+
+        # 1. Reschedule YouTube QUEUED items
+        cur.execute("SELECT id FROM youtube_schedule_queue WHERE status = 'QUEUED' ORDER BY scheduled_time ASC")
+        yt_rows = cur.fetchall()
+        yt_updates = []
+        cur_yt_dt = now + timedelta(minutes=yt_start_offset)
+        rem = cur_yt_dt.minute % 15
+        if rem != 0:
+            cur_yt_dt += timedelta(minutes=(15 - rem))
+        cur_yt_dt = cur_yt_dt.replace(second=0, microsecond=0)
+
+        for r in yt_rows:
+            yt_updates.append((cur_yt_dt.isoformat(), r["id"]))
+            cur_yt_dt += timedelta(minutes=interval_minutes)
+
+        if yt_updates:
+            cur.executemany("UPDATE youtube_schedule_queue SET scheduled_time = ? WHERE id = ?", yt_updates)
+
+        # 2. Reschedule Instagram QUEUED items
+        cur.execute("SELECT id FROM instagram_schedule_queue WHERE status = 'QUEUED' ORDER BY scheduled_time ASC")
+        ig_rows = cur.fetchall()
+        ig_updates = []
+        cur_ig_dt = now + timedelta(minutes=ig_start_offset)
+        cur_ig_dt = cur_ig_dt.replace(second=0, microsecond=0)
+
+        for r in ig_rows:
+            ig_updates.append((cur_ig_dt.isoformat(), r["id"]))
+            cur_ig_dt += timedelta(minutes=interval_minutes)
+
+        if ig_updates:
+            cur.executemany("UPDATE instagram_schedule_queue SET scheduled_time = ? WHERE id = ?", ig_updates)
+
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Algorithmic Reschedule: Spaced {len(yt_updates)} YouTube items and {len(ig_updates)} Instagram items {interval_minutes}m apart.")
+        return {
+            "success": True,
+            "youtube_rescheduled": len(yt_updates),
+            "instagram_rescheduled": len(ig_updates),
+            "interval_minutes": interval_minutes,
+            "youtube_next": yt_updates[0][0] if yt_updates else None,
+            "instagram_next": ig_updates[0][0] if ig_updates else None
+        }
 
     def schedule_instagram_reel(
         self,
@@ -903,25 +1033,55 @@ class YouTubeSchedulerEngine:
                 conn = get_db_connection()
                 cursor = conn.cursor()
 
-                # 1. Check YouTube Queue (only if not paused by active browser session)
+                # 1. Check YouTube Queue (with Anti-Cannibalization Cooldown Guard)
                 yt_row = None
                 if not self.is_paused and not self._current_uploading_id:
-                    cursor.execute("""
-                        SELECT * FROM youtube_schedule_queue 
-                        WHERE status = 'QUEUED' AND scheduled_time <= ?
-                        ORDER BY scheduled_time ASC LIMIT 1
-                    """, (now_iso,))
-                    yt_row = cursor.fetchone()
+                    cursor.execute("SELECT MAX(published_at) FROM youtube_schedule_queue WHERE status = 'PUBLISHED'")
+                    last_yt_pub = cursor.fetchone()[0]
+                    yt_cooldown_ok = True
+                    if last_yt_pub:
+                        try:
+                            last_yt_dt = datetime.fromisoformat(last_yt_pub)
+                            mins_since_pub = (datetime.now() - last_yt_dt).total_seconds() / 60.0
+                            if mins_since_pub < 90:
+                                yt_cooldown_ok = False
+                                if loop_counter % 20 == 0:
+                                    logger.info(f"⏳ YouTube Algorithmic Cooldown: Last Short published {mins_since_pub:.1f}m ago. Maintaining 90m+ seed audience runway to prevent self-cannibalization.")
+                        except Exception:
+                            pass
 
-                # 2. Check Instagram Queue (runs independently via Mobile Private API; never blocked by YouTube)
+                    if yt_cooldown_ok:
+                        cursor.execute("""
+                            SELECT * FROM youtube_schedule_queue 
+                            WHERE status = 'QUEUED' AND scheduled_time <= ?
+                            ORDER BY scheduled_time ASC LIMIT 1
+                        """, (now_iso,))
+                        yt_row = cursor.fetchone()
+
+                # 2. Check Instagram Queue (with Anti-Cannibalization Cooldown Guard)
                 ig_row = None
                 if not self._current_uploading_id:
-                    cursor.execute("""
-                        SELECT * FROM instagram_schedule_queue
-                        WHERE status = 'QUEUED' AND scheduled_time <= ?
-                        ORDER BY scheduled_time ASC LIMIT 1
-                    """, (now_iso,))
-                    ig_row = cursor.fetchone()
+                    cursor.execute("SELECT MAX(published_at) FROM instagram_schedule_queue WHERE status = 'PUBLISHED'")
+                    last_ig_pub = cursor.fetchone()[0]
+                    ig_cooldown_ok = True
+                    if last_ig_pub:
+                        try:
+                            last_ig_dt = datetime.fromisoformat(last_ig_pub)
+                            mins_since_ig = (datetime.now() - last_ig_dt).total_seconds() / 60.0
+                            if mins_since_ig < 90:
+                                ig_cooldown_ok = False
+                                if loop_counter % 20 == 0:
+                                    logger.info(f"⏳ Instagram Algorithmic Cooldown: Last Reel published {mins_since_ig:.1f}m ago. Protecting DM share velocity & explore seeding runway.")
+                        except Exception:
+                            pass
+
+                    if ig_cooldown_ok:
+                        cursor.execute("""
+                            SELECT * FROM instagram_schedule_queue
+                            WHERE status = 'QUEUED' AND scheduled_time <= ?
+                            ORDER BY scheduled_time ASC LIMIT 1
+                        """, (now_iso,))
+                        ig_row = cursor.fetchone()
 
                 conn.close()
 
@@ -941,6 +1101,26 @@ class YouTubeSchedulerEngine:
                         storage_cleaner.run_full_storage_maintenance()
                     except Exception as ce:
                         logger.debug(f"Periodic storage cleanup error: {ce}")
+
+                # 4. Strict 8-Hour Long-Form Compilation Span Check (Only at span of 8 hours)
+                if loop_counter % 60 == 0:  # Check every ~30 minutes
+                    try:
+                        from jarvis.backend.video.compilation_builder import compilation_builder
+                        span_check = compilation_builder.can_produce_next_longform()
+                        if span_check["can_produce"] and not self.is_paused and not self._current_uploading_id:
+                            next_slot = compilation_builder.calculate_next_8h_slot()
+                            logger.info(
+                                f"🎬 Long-Form Engine: 8-hour span reached ({span_check['hours_elapsed']}h elapsed). "
+                                f"Producing and scheduling next long-form video from published clips for {next_slot['schedule_time']} ({next_slot['schedule_date']})..."
+                            )
+                            asyncio.create_task(compilation_builder.build_and_schedule_8h_compilation(limit=10, only_published=True))
+                        else:
+                            logger.debug(
+                                f"⏳ Long-Form Engine: 8-hour cooldown active. Continuing short clipping. "
+                                f"Remaining until next 8h span: {span_check['hours_remaining']}h | Future scheduled drops: {span_check['future_scheduled_count']}"
+                            )
+                    except Exception as lfe:
+                        logger.debug(f"Periodic long-form 8h scheduler notice: {lfe}")
 
             except Exception as e:
                 logger.error(f"Error in queue worker loop: {e}", exc_info=True)

@@ -61,10 +61,20 @@ async def lifespan(app: FastAPI):
     # Start periodic background hardware telemetry loop
     metrics_task = asyncio.create_task(state_manager.start_metrics_loop())
     scheduler_task = asyncio.create_task(scheduler_engine.run_worker_loop())
+    
+    # Autonomous 24/7 continuous stream clipper (alternating CarryMinati & IShowSpeed)
+    from jarvis.backend.video.livestream_clipper import livestream_clipper
+    clipper_task = asyncio.create_task(
+        livestream_clipper.run_continuous_pipeline(
+            live_url="https://www.youtube.com/watch?v=irNhWMG560k",
+            alternate_url="https://www.youtube.com/live/qSyo5d-dVzA"
+        )
+    )
     yield
     # Shutdown sequence
     metrics_task.cancel()
     scheduler_task.cancel()
+    clipper_task.cancel()
     wakeword_listener.stop_listening()
     tts_engine.stop_speaking()
     logger.info("JARVIS systems safely suspended.")
@@ -1201,13 +1211,26 @@ async def api_dispatch_next_now():
 
 
 class RescheduleQueueRequest(BaseModel):
-    interval_minutes: Optional[int] = 45
+    interval_minutes: Optional[int] = 120
+
+
+@app.post("/api/social/queue/schedule-month")
+async def api_schedule_month(days: int = 60):
+    """Schedule all pending YouTube Shorts and Instagram Reels across 4 daily global prime-time windows for the next 2 months (60 days)."""
+    return scheduler_engine.schedule_month_algorithmic_cadence(days=days)
+
+
+@app.post("/api/social/queue/reschedule-algorithmic")
+async def api_reschedule_algorithmic(req: Optional[RescheduleQueueRequest] = None):
+    """Reschedule entire YouTube and Instagram queues with 2-hour (120m) algorithmic spacing to eliminate self-cannibalization."""
+    interval = req.interval_minutes if req and req.interval_minutes else 120
+    return scheduler_engine.reschedule_all_queues_for_algorithm(interval_minutes=interval)
 
 
 @app.post("/api/social/youtube/queue/reschedule")
 async def api_reschedule_queue(req: Optional[RescheduleQueueRequest] = None):
-    """Reschedule entire queue with specified spacing (default 45 mins)."""
-    interval = req.interval_minutes if req and req.interval_minutes else 45
+    """Reschedule entire queue with specified spacing (default 120 mins)."""
+    interval = req.interval_minutes if req and req.interval_minutes else 120
     return scheduler_engine.reschedule_queue(interval_minutes=interval)
 
 
@@ -1539,6 +1562,34 @@ async def research_trends(niche: str = Query("gaming")):
 async def research_growth_plan():
     plan = await content_researcher.get_growth_action_plan()
     return plan
+
+
+@app.get("/api/monetization/status")
+async def get_monetization_status():
+    """Real-time 60-day monetization roadmap telemetry for YouTube YPP and Instagram Creator."""
+    from jarvis.backend.social.monetization_tracker import monetization_tracker
+    return monetization_tracker.get_progress_report()
+
+
+@app.post("/api/monetization/build-compilation")
+async def build_monetization_compilation(limit: int = 10, layout: str = "horizontal_pillarbox", only_published: bool = True):
+    """Assemble top published clips into an 8-12 minute YouTube Long-Form Compilation to collect 4,000 Watch Hours."""
+    from jarvis.backend.video.compilation_builder import compilation_builder
+    return compilation_builder.build_weekly_compilation(limit=limit, layout=layout, only_published=only_published)
+
+
+@app.get("/api/monetization/longform/status")
+async def get_longform_schedule_status():
+    """Retrieve upcoming and past 8-hour spaced YouTube Long-Form compilation slots."""
+    from jarvis.backend.video.compilation_builder import compilation_builder
+    return compilation_builder.get_8h_schedule_status()
+
+
+@app.post("/api/monetization/longform/schedule-now")
+async def schedule_longform_compilation_now(limit: int = 10, only_published: bool = True):
+    """Build and schedule the next 8-hour gap Long-Form Compilation to YouTube Studio strictly from published clips."""
+    from jarvis.backend.video.compilation_builder import compilation_builder
+    return await compilation_builder.build_and_schedule_8h_compilation(limit=limit, only_published=only_published)
 
 
 @app.post("/api/research/apply-to-pipeline")

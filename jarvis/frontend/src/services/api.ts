@@ -746,6 +746,30 @@ export const api = {
     return res.json();
   },
 
+  async getMonetizationStatus(): Promise<any> {
+    const res = await fetch('/api/monetization/status');
+    return res.json();
+  },
+
+  async buildMonetizationCompilation(limit = 10, layout = 'horizontal_pillarbox'): Promise<any> {
+    const res = await fetch(`/api/monetization/build-compilation?limit=${limit}&layout=${layout}`, {
+      method: 'POST'
+    });
+    return res.json();
+  },
+
+  async getLongformScheduleStatus(): Promise<any> {
+    const res = await fetch('/api/monetization/longform/status');
+    return res.json();
+  },
+
+  async scheduleLongformNow(limit = 10): Promise<any> {
+    const res = await fetch(`/api/monetization/longform/schedule-now?limit=${limit}`, {
+      method: 'POST'
+    });
+    return res.json();
+  },
+
   async applyResearchToPipeline(payload: any = {}): Promise<any> {
     const res = await fetch('/api/research/apply-to-pipeline', {
       method: 'POST',
@@ -1086,7 +1110,14 @@ export const api = {
     return res.json();
   },
 
-  async rescheduleYouTubeQueue(intervalMinutes = 45): Promise<any> {
+  async scheduleMonthQueue(): Promise<any> {
+    const res = await fetch('/api/social/queue/schedule-month', {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
+  async rescheduleYouTubeQueue(intervalMinutes = 120): Promise<any> {
     const res = await fetch('/api/social/youtube/queue/reschedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

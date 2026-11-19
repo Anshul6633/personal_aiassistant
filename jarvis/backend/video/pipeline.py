@@ -264,17 +264,22 @@ class VideoPipeline:
                     hook_title=viral_title
                 )
 
-                # Render 9:16 vertical MP4 with Ultra-HD studio mastering
+                # Render 9:16 vertical MP4 with Ultra-HD studio mastering, trending music & high-CTR smart cover
                 rendered = await loop.run_in_executor(
                     None,
-                    video_editor.render_vertical_clip,
-                    video_path,
-                    cand["start_time"],
-                    cand["end_time"],
-                    clip_label,
-                    ass_path,
-                    False,
-                    clip_crop_mode
+                    lambda: video_editor.render_vertical_clip(
+                        source_video=video_path,
+                        start_time=cand["start_time"],
+                        end_time=cand["end_time"],
+                        output_name=clip_label,
+                        subtitles_ass=ass_path,
+                        trim_silence=False,
+                        crop_mode=clip_crop_mode,
+                        add_bg_music=True,
+                        bg_music_path=None,
+                        hook_title=viral_title,
+                        streamer_name=source_channel
+                    )
                 )
     
                 # Generate comprehensive, SEO-rich YouTube description with CTAs, quotes & source credits

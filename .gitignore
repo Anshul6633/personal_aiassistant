@@ -76,6 +76,7 @@ scratch/
 *.jpeg
 
 # Windows OS / IDE files
+~$*
 Thumbs.db
 ehthumbs.db
 Desktop.ini

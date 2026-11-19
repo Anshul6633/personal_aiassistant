@@ -267,7 +267,8 @@ class YouTubeBrowserUploader:
         if not security_guard.is_safe_to_proceed("youtube_browser_upload", {"title": title, "path": str(video_file)}):
             raise PermissionError("Upload blocked by security permissions.")
 
-        if "#Shorts" not in title and "#shorts" not in title:
+        is_longform = ("compilation" in title.lower() or "episode" in title.lower() or "longform" in str(tags).lower() or "long-form" in str(tags).lower())
+        if not is_longform and "#Shorts" not in title and "#shorts" not in title:
             title = f"{title} #Shorts"
 
         logger.info(f"Starting browser automation upload for: {title}")

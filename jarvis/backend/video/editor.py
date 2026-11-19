@@ -226,6 +226,9 @@ class VideoEditor:
             # Algorithmic Retention Multiplier: High-contrast Top Hook Header Banner
             hook_style_line = f"Style: HookHeader,{preset['font']},46,&H00FFFFFF,&H0000FFFF,&H00180220,&HB0080110,-1,0,0,0,100,100,0,0,3,6,0,8,40,40,240,1\n"
 
+        # Conversion Engine: High-contrast subscriber prompt (safe zone bottom-center)
+        sub_prompt_line = "Style: SubPrompt,Arial,30,&H00FFFFFF,&H0000FFFF,&H00111111,&H90000000,-1,0,0,0,100,100,0,0,3,4,0,2,40,40,160,1\n"
+
         header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -235,7 +238,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{preset['font']},{preset['size']},{preset['primary']},{preset['secondary']},{preset['outline_col']},{preset['back_col']},{preset['bold']},0,0,0,100,100,0,0,1,{preset['outline']},{preset['shadow']},2,60,60,{margin_v},1
-{hook_style_line}
+{hook_style_line}{sub_prompt_line}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -293,6 +296,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             h_end_str = f"{h_s // 3600}:{(h_s % 3600) // 60:02d}:{h_s % 60:02d}.{h_cs:02d}"
             events.insert(0, f"Dialogue: 1,0:00:00.00,{h_end_str},HookHeader,,0,0,0,,{{\\fad(200,0)}}{clean_hook.upper()}")
 
+        # Algorithmic Subscriber & Follower Conversion Prompt (at second 7.5 to 11.0)
+        clip_dur = clip_end - clip_start
+        if clip_dur >= 12.0:
+            cta_start = "0:00:07.50"
+            cta_end = "0:00:11.00"
+            cta_text = "{\\fad(250,250)\\c&H00FFFFFF&\\3c&H00111111&\\b1}🔔 FOLLOW / SUB FOR PART 2"
+            events.append(f"Dialogue: 2,{cta_start},{cta_end},SubPrompt,,0,0,0,,{cta_text}")
+
         content = header + "\n".join(events)
         with open(output_ass_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -307,13 +318,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         output_name: str,
         subtitles_ass: Optional[str] = None,
         trim_silence: bool = False,
-        crop_mode: str = "fill"
+        crop_mode: str = "fill",
+        add_bg_music: bool = True,
+        bg_music_path: Optional[str] = None,
+        hook_title: Optional[str] = None,
+        streamer_name: Optional[str] = None
     ) -> Dict[str, str]:
-        """Cut video, re-frame to 1080x1920 (9:16), burn subtitles, and normalize audio.
+        """Cut video, re-frame to 1080x1920 (9:16), burn subtitles, duck trending background music, and normalize audio.
 
         Args:
             crop_mode: 'fill' (full 9:16 edge-to-edge frame, NO background bars) or
                        'blur' (centered 16:9 box with blurred mirror background).
+            add_bg_music: Whether to mix trending background music (Phonk/Trap/Synthwave).
+            bg_music_path: Explicit path to music track, or None to auto-select from trending library.
         """
         duration = end_time - start_time
         out_mp4 = str(REELS_DIR / f"{output_name}.mp4")
@@ -363,15 +380,40 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if trim_silence:
             audio_filter = "silenceremove=stop_periods=-1:stop_duration=1.2:stop_threshold=-35dB," + audio_filter
 
+        # Auto-resolve trending background music track
+        if add_bg_music and not bg_music_path:
+            try:
+                from jarvis.backend.video.trending_music_manager import trending_music_manager
+                bg_music_path = trending_music_manager.get_track_for_clip()
+            except Exception:
+                bg_music_path = None
+
+        has_bg_music = bool(bg_music_path and Path(bg_music_path).exists())
+        if has_bg_music:
+            st_out = max(0.5, duration - 1.0)
+            filter_complex += (
+                f";[1:a]volume=0.13,afade=t=in:st=0:d=0.5,afade=t=out:st={st_out:.2f}:d=1.0[bgm];"
+                f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2,"
+                f"{audio_filter}[outa]"
+            )
+            final_audio_label = "[outa]"
+            input_args = [
+                "-ss", str(start_time), "-t", str(duration), "-i", source_video,
+                "-stream_loop", "-1", "-ss", "0", "-t", str(duration), "-i", str(bg_music_path)
+            ]
+        else:
+            final_audio_label = "0:a?"
+            input_args = [
+                "-ss", str(start_time), "-t", str(duration), "-i", source_video
+            ]
+
         cmd = [
             self.ffmpeg,
             "-y",
-            "-ss", str(start_time),
-            "-t", str(duration),
-            "-i", source_video,
+            *input_args,
             "-filter_complex", filter_complex,
             "-map", final_video_label,
-            "-map", "0:a?",
+            "-map", final_audio_label,
             "-c:v", "libx264",
             "-preset", "fast",
             "-crf", "17",
@@ -380,9 +422,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-b:a", "256k",
-            "-af", audio_filter,
-            out_mp4
         ]
+        if not has_bg_music:
+            cmd.extend(["-af", audio_filter])
+        cmd.append(out_mp4)
 
         logger.info(f"Rendering vertical clip {output_name} ({duration}s)...")
         res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
@@ -403,7 +446,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # Generate high-CTR smart thumbnail with computer vision scoring & viral polish
         try:
             from jarvis.backend.video.smart_thumbnail_generator import smart_thumbnail_generator
-            smart_thumbnail_generator.extract_smart_thumbnail(out_mp4, out_thumb)
+            smart_thumbnail_generator.extract_smart_thumbnail(
+                video_path=out_mp4,
+                output_thumb_path=out_thumb,
+                hook_text=hook_title or output_name,
+                streamer_name=streamer_name,
+                badge_label="GTA 6"
+            )
         except Exception as e:
             logger.warning(f"Smart thumbnail generation failed, falling back to midpoint: {e}")
             thumb_time = str(duration / 2.0)

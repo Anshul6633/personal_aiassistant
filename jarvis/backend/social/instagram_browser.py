@@ -300,12 +300,14 @@ class InstagramBrowserUploader:
             try:
                 import random
                 comment_hooks = [
-                    "Send this to your friend who drives like this 💀🚗",
-                    "Tag your duo who would choke this mission immediately 😂👇",
+                    "Who had the better reaction? 🇮🇳 for Carry, ⚡ for Speed! Drop your rating 1-10 👇",
+                    "Wait for Part 2! Did you spot the secret detail at 0:12? 👀 Drop your thoughts!",
                     "Drop a W or L in the comments! Did he overreact or was he right? 👇🔥",
-                    "Rate this clutch from 1 to 10 below! 🔥👀",
-                    "Tag that one friend who needs to see this GTA 6 moment 😭🎮",
-                    "What would you do in this situation? Let me know! 💀👇",
+                    "Follow @clipperwithout for daily uncut GTA 6 stream moments & live clips! 🚀",
+                    "Tag your duo who would choke this mission immediately 😂💀",
+                    "Rate this reaction from 1 to 10 below! Best comment gets pinned 🔥👀",
+                    "Which streamer should we clip next? Speed, Carry, or Kai Cenat? Vote below 👇",
+                    "Send this to your friend who drives like this 💀🚗",
                     "Is GTA 6 going to top this? Drop your thoughts! 🚀💥"
                 ]
                 first_comment = random.choice(comment_hooks)

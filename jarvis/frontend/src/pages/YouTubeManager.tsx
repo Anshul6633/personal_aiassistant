@@ -167,11 +167,11 @@ export const YouTubeManager: React.FC<YouTubeManagerProps> = ({ clips, onRefresh
     }
   };
 
-  const handleReschedule45m = async () => {
-    setStatusMessage('Rescheduling queue with 45-minute intervals starting from today...');
+  const handleReschedule120m = async () => {
+    setStatusMessage('Rescheduling queue with 2-hour (120m) algorithmic intervals to prevent feed cannibalization...');
     try {
-      const res = await api.rescheduleYouTubeQueue(45);
-      setStatusMessage(`✅ Rescheduled ${res.count} videos 45m apart starting at ${res.first_scheduled}!`);
+      const res = await api.rescheduleYouTubeQueue(120);
+      setStatusMessage(`✅ Rescheduled ${res.count} videos 2 hours apart starting at ${res.first_scheduled}!`);
       fetchQueue();
     } catch (e: any) {
       setStatusMessage(`Error rescheduling: ${e.message}`);
@@ -523,13 +523,13 @@ export const YouTubeManager: React.FC<YouTubeManagerProps> = ({ clips, onRefresh
             </button>
 
             <button
-              onClick={handleReschedule45m}
+              onClick={handleReschedule120m}
               disabled={queueStats?.total === 0}
               className="px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-mono hover:bg-purple-600/30 flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
-              title="Reschedule entire queue with 45-minute intervals starting from today"
+              title="Reschedule entire queue with 2-hour algorithmic spacing to prevent self-cannibalization"
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Reschedule 45m</span>
+              <span>Algorithmic Pacing (2h)</span>
             </button>
 
             <button
