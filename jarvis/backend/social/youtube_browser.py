@@ -409,10 +409,16 @@ class YouTubeBrowserUploader:
                 await asyncio.sleep(1.0)
 
                 # Monitor video upload progress until raw file bytes are 100% uploaded
-                logger.info("Verifying video file upload progress on YouTube Studio...")
-                for _ in range(60):
+                file_size_mb = Path(video_path).stat().st_size / (1024 * 1024) if Path(video_path).exists() else 20.0
+                max_wait_seconds = max(180, int(file_size_mb * 8))
+                max_loops = max(60, max_wait_seconds // 3)
+                logger.info(f"Verifying video upload progress for {file_size_mb:.1f} MB file (max timeout: {max_wait_seconds}s)...")
+                
+                upload_finished = False
+                last_logged_status = ""
+                for loop_idx in range(max_loops):
                     txts = []
-                    for sel in [".progress-label", "ytcp-video-upload-progress", "[id*='upload-progress']", "div:has-text('% uploaded')", "span:has-text('% uploaded')"]:
+                    for sel in [".progress-label", "ytcp-video-upload-progress", "[id*='upload-progress']", "div:has-text('% uploaded')", "span:has-text('% uploaded')", "ytcp-video-upload-progress span"]:
                         try:
                             els = await page.locator(sel).all()
                             for e in els:
@@ -423,11 +429,17 @@ class YouTubeBrowserUploader:
                             pass
                     combined = " | ".join(txts)
                     if combined:
-                        logger.info(f"YouTube upload status: '{combined}'")
-                        if any(k in combined.lower() for k in ["upload complete", "processing", "saved", "100% uploaded", "checks starting"]):
-                            logger.info("Video file bytes successfully transmitted to YouTube!")
+                        if combined != last_logged_status or loop_idx % 5 == 0:
+                            logger.info(f"YouTube upload status ({loop_idx * 3}s / {max_wait_seconds}s): '{combined}'")
+                            last_logged_status = combined
+                        if any(k in combined.lower() for k in ["upload complete", "processing", "saved", "100% uploaded", "checks starting", "checks complete"]):
+                            logger.info(f"Video file bytes successfully transmitted to YouTube! ({combined})")
+                            upload_finished = True
                             break
-                    await asyncio.sleep(2.0)
+                    await asyncio.sleep(3.0)
+
+                if not upload_finished:
+                    logger.warning(f"Video upload progress loop reached limit ({max_wait_seconds}s). Last status: '{last_logged_status}'. Attempting to proceed...")
 
                 # Check if YouTube Studio daily upload limit is reached
                 if await self._check_daily_limit(page):
@@ -619,7 +631,7 @@ class YouTubeBrowserUploader:
                     await done_btn.scroll_into_view_if_needed()
                 except Exception:
                     pass
-                await done_btn.wait_for(timeout=25000)
+                await done_btn.wait_for(timeout=60000)
                 btn_label = (await done_btn.inner_text()).strip()
                 logger.info(f"Action button initial text: '{btn_label}'")
 
