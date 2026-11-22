@@ -537,9 +537,10 @@ class LivestreamClipperManager:
         credits_name: str = "CarryMinati",
         channel_handle: str = "@CarryisLive",
         sleep_between_cycles: int = 35,
-        crop_mode: str = "auto"
+        crop_mode: str = "auto",
+        auto_schedule_social: bool = False
     ) -> Dict[str, Any]:
-        """Continuous live stream ingest, AI hook slicing, and YouTube Shorts auto-upload loop with stream alternation."""
+        """Continuous live stream ingest, AI hook slicing, and local video asset production."""
         self.continuous_running = True
         self.is_running = True
         self.current_state["status"] = "STREAMING_CONTINUOUS"
@@ -778,9 +779,26 @@ class LivestreamClipperManager:
                         f"#gta6 #gaming #shorts #viral #gtavi #trending {streamer_tag}"
                     )
 
-                    # 4. Schedule or Publish Short on YouTube Studio with Reach Pacing (120m Algorithmic Gap)
+                    # 4. Social Scheduling & Upload Policy
+                    if not auto_schedule_social:
+                        # STRICT CADENCE COMPLIANCE: Do not auto-upload or mass-schedule to YouTube/Instagram.
+                        # Save clip locally in READY state for our calibrated 4-slot daily queue.
+                        try:
+                            conn = get_db_connection()
+                            cur = conn.cursor()
+                            cur.execute(
+                                "UPDATE clips SET status = 'READY', published_youtube = 0, published_instagram = 0 WHERE output_path = ?",
+                                (short_path,)
+                            )
+                            conn.commit()
+                            conn.close()
+                        except Exception as de:
+                            logger.debug(f"Could not record READY status in DB: {de}")
+                        self._log(f"💾 [ASSET LIBRARY READY] Clip saved locally (Zero mass-scheduling): '{final_title}'")
+                        continue
+
+                    # If auto_schedule_social is explicitly enabled:
                     yt_target_dt = scheduler_engine.calculate_adaptive_schedule_time(platform="youtube", base_interval_minutes=120, slot_index=clip_idx - 1)
-                    # Format time without leading zero (e.g. '8:30 PM' instead of '08:30 PM') as required by YouTube Studio
                     sched_time_str = yt_target_dt.strftime("%I:%M %p").lstrip("0")
                     sched_date_str = yt_target_dt.strftime("%b %d, %Y")
                     mins_away_yt = max(1, int((yt_target_dt - datetime.now()).total_seconds() / 60))
@@ -815,7 +833,6 @@ class LivestreamClipperManager:
                             "timestamp": datetime.now().isoformat()
                         })
 
-                        # Record in database
                         try:
                             conn = get_db_connection()
                             cur = conn.cursor()
@@ -829,23 +846,11 @@ class LivestreamClipperManager:
                             logger.warning(f"Could not record scheduled status in DB: {de}")
 
                     except Exception as ue:
-                        self._log(f"⚠️ YouTube Studio upload notice: {ue}. Auto-enqueuing to local YouTube schedule queue.")
-                        try:
-                            scheduler_engine.enqueue_clip(
-                                clip_id=clip.get("id") or str(uuid.uuid4()),
-                                video_path=short_path,
-                                title=final_title,
-                                description=short_desc,
-                                tags=active_tags,
-                                scheduled_time=yt_target_dt.isoformat(),
-                                privacy="public"
-                            )
-                        except Exception as qe:
-                            logger.warning(f"Could not enqueue YouTube clip: {qe}")
+                        self._log(f"⚠️ YouTube Studio upload notice: {ue}")
                     finally:
                         scheduler_engine.resume_queue()
 
-                    # 5. Schedule Reel to Instagram with Progressive Reach Pacing
+                    # 5. Schedule Reel to Instagram if enabled
                     try:
                         from jarvis.backend.social.instagram_browser import instagram_browser
                         from jarvis.backend.social.anti_ban_guard import anti_ban_guard
@@ -868,7 +873,7 @@ class LivestreamClipperManager:
                                 scheduled_time=ig_target_dt.isoformat(),
                                 tags=active_tags
                             )
-                            self._log(f"📅 [Instagram Reach Scheduler] Queued Reel ({active_creator}) '{clean_title[:32]}' for {ig_target_dt.strftime('%I:%M %p')} (+{mins_away_ig}m) to maximize algorithmic distribution!")
+                            self._log(f"📅 [Instagram Reach Scheduler] Queued Reel ({active_creator}) '{clean_title[:32]}' for {ig_target_dt.strftime('%I:%M %p')} (+{mins_away_ig}m)")
                             try:
                                 conn = get_db_connection()
                                 cur = conn.cursor()
@@ -877,8 +882,6 @@ class LivestreamClipperManager:
                                 conn.close()
                             except Exception:
                                 pass
-                        else:
-                            self._log("ℹ️ [Instagram] @clipperwithout session reconnecting...")
                     except Exception as ige:
                         self._log(f"⚠️ Instagram scheduling note: {ige}")
 

@@ -132,11 +132,15 @@ def run_login():
             except Exception:
                 continue
 
-            # Check if reached studio dashboard or cookies written
-            is_studio_url = "studio.youtube.com" in curr_url and "accounts.google.com" not in curr_url and "signin" not in curr_url
-            has_cookies = (step % 5 == 0) and check_auth_cookies_present()
+            # Check if reached studio dashboard (must NOT be on accounts.google.com or signin)
+            is_studio_url = (
+                "studio.youtube.com" in curr_url 
+                and "accounts.google.com" not in curr_url 
+                and "signin" not in curr_url 
+                and "accountchooser" not in curr_url
+            )
 
-            if is_studio_url or ("channel" in curr_url and "studio.youtube.com" in curr_url) or has_cookies:
+            if is_studio_url:
                 try:
                     title_el = page.query_selector("#channel-title, [id='channel-name']")
                     if title_el:

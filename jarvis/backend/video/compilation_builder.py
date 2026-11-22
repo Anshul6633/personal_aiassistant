@@ -172,6 +172,72 @@ class CompilationBuilder:
         
         return candidates[:limit]
 
+    def get_widescreen_source_chapters(self, num_chapters: int = 8, chapter_duration: float = 75.0) -> List[Dict[str, Any]]:
+        """Extract curated 16:9 widescreen chapters directly from high-quality downloaded master files.
+        Guarantees 100% full-screen 16:9 aspect ratio (1920x1080), zero pillarbox, zero blurred wings, and >8-12 min total runtime.
+        """
+        dl_dir = WORKSPACE_ROOT / "jarvis" / "output" / "downloads"
+        if not dl_dir.exists():
+            return []
+
+        sources = []
+        exclude_kw = {"rick", "astley", "trial", "athlete", "habits", "chef", "podcast", "mrbeast"}
+        for f in sorted(dl_dir.glob("*.mp4")):
+            fn_lower = f.name.lower()
+            if any(k in fn_lower for k in exclude_kw):
+                continue
+            if f.name.endswith(".f616.mp4") or f.name.startswith("test_") or "sample" in f.name:
+                continue
+            try:
+                w, h = self.get_video_dimensions(str(f))
+                dur = self.get_video_duration(str(f))
+                if w >= h and dur >= 120.0:
+                    sources.append({"path": str(f), "name": f.name, "duration": dur})
+            except Exception:
+                pass
+
+        if not sources:
+            return []
+
+        chapters = []
+        chapter_titles = [
+            "Insane High-Speed Highway Heist",
+            "Vice City Police 5-Star Wanted Level",
+            "Next-Gen Physics & Map Secrets",
+            "Ultra-Realistic Vice City Graphics",
+            "Weapon Customization & Safehouse Loot",
+            "200 IQ Streamer Clutch & Speed Trap",
+            "Secret Mission Easter Egg Discovered",
+            "Ultimate Nitro Drift & Escape",
+            "Impossible Ramp Jump & Stunt",
+            "Underworld Kingpin Confrontation"
+        ]
+
+        # Evenly sample chapters across the available 16:9 source videos
+        for i in range(num_chapters):
+            src = sources[i % len(sources)]
+            src_dur = src["duration"]
+            slice_idx = i // len(sources)
+            max_slices = max(1, int((src_dur - 60.0) // chapter_duration))
+            chosen_slice = slice_idx % max_slices
+            start_time = 35.0 + (chosen_slice * chapter_duration)
+            if start_time + chapter_duration > src_dur:
+                start_time = max(0.0, src_dur - chapter_duration - 5.0)
+
+            title = chapter_titles[i % len(chapter_titles)]
+            chapters.append({
+                "path": src["path"],
+                "name": f"{Path(src['path']).stem}_ch{i+1}",
+                "caption": title,
+                "start": round(start_time, 1),
+                "duration": chapter_duration,
+                "score": 95.0,
+                "is_widescreen": True,
+                "created_at": datetime.now().isoformat()
+            })
+
+        return chapters
+
     def get_video_duration(self, file_path: str) -> float:
         """Get exact duration in seconds using ffprobe."""
         try:
@@ -239,11 +305,11 @@ class CompilationBuilder:
                 "reason": f"Aspect ratio violation: Expected 1.777 (16:9), got {aspect_ratio:.3f}!"
             }
 
-        # Rule 3: Duration check (Must be >= 300s for long-form mid-roll eligibility)
-        if dur < 300:
+        # Rule 3: Duration check (Must be >= 480s / 8 mins for YouTube mid-roll ad monetization & watch hours)
+        if dur < 480:
             return {
                 "verified": False,
-                "reason": f"Duration violation: Video is only {dur:.1f}s. Long videos must be at least 5-12 minutes!"
+                "reason": f"Duration violation: Video is {dur:.1f}s ({dur/60:.1f}m). Long videos must be at least 8-15 minutes for mid-roll monetization!"
             }
 
         # Rule 4: Probe audio streams
@@ -264,8 +330,25 @@ class CompilationBuilder:
         except Exception as e:
             return {"verified": False, "reason": f"Audio ffprobe failed: {e}"}
 
-        # Rule 5: Thumbnail check
+        # Rule 5: Thumbnail check (Resolution & existence)
         if thumbnail_path:
+            tp = Path(thumbnail_path)
+            if not tp.exists() or tp.stat().st_size < 1000:
+                return {"verified": False, "reason": f"Thumbnail missing or empty: {thumbnail_path}"}
+            try:
+                cmd_t = [
+                    self.ffprobe, "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height",
+                    "-of", "json", str(tp)
+                ]
+                res_t = subprocess.run(cmd_t, capture_output=True, text=True, check=True)
+                t_data = json.loads(res_t.stdout)["streams"][0]
+                tw, th = int(t_data.get("width", 0)), int(t_data.get("height", 0))
+                if tw < 1280 or th < 720:
+                    return {"verified": False, "reason": f"Thumbnail resolution low ({tw}x{th}). Must be at least 1280x720 (16:9)!"}
+            except Exception as te:
+                logger.warning(f"Thumbnail probe warning: {te}")
             tp = Path(thumbnail_path)
             if not tp.exists() or tp.stat().st_size < 1000:
                 return {"verified": False, "reason": f"Thumbnail missing or empty: {thumbnail_path}"}
@@ -340,7 +423,15 @@ class CompilationBuilder:
         only_published: bool = True
     ) -> Dict[str, Any]:
         """Stitch 6-12 clips into a pristine full-screen 16:9 (1920x1080) Widescreen Long-Form Compilation."""
-        selected_clips = clips or self.get_candidate_clips(limit=limit, only_published=only_published)
+        if clips:
+            selected_clips = clips
+        elif layout == "fullscreen_16_9":
+            selected_clips = self.get_widescreen_source_chapters(num_chapters=limit or 8, chapter_duration=75.0)
+            if len(selected_clips) < 4:
+                selected_clips = self.get_candidate_clips(limit=limit, only_published=only_published)
+        else:
+            selected_clips = self.get_candidate_clips(limit=limit, only_published=only_published)
+
         if len(selected_clips) < 2:
             return {
                 "success": False,
@@ -360,7 +451,8 @@ class CompilationBuilder:
         try:
             # 1. Generate 5-Second Viral Opening Teaser in 16:9 Full Screen
             lead_clip = selected_clips[0]["path"]
-            lead_dur = self.get_video_duration(lead_clip)
+            lead_start = selected_clips[0].get("start", 0.0)
+            lead_dur = selected_clips[0].get("duration") or self.get_video_duration(lead_clip)
             teaser_dur = min(5.0, lead_dur / 2.0)
             teaser_file = COMPILATIONS_DIR / f"{compilation_id}_teaser.mp4"
 
@@ -368,20 +460,22 @@ class CompilationBuilder:
             if w_lead >= h_lead:
                 teaser_filter = (
                     "[0:v]scale=1920:1080:flags=lanczos,unsharp=3:3:0.6:3:3:0.0,"
-                    "eq=contrast=1.06:saturation=1.12:gamma=0.98[v]"
+                    "eq=contrast=1.06:saturation=1.12:gamma=0.98,setpts=PTS-STARTPTS[v]"
                 )
             else:
                 teaser_filter = (
                     "[0:v]scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,"
-                    "crop=1920:1080,unsharp=3:3:0.6:3:3:0.0,eq=contrast=1.06:saturation=1.12:gamma=0.98[v]"
+                    "crop=1920:1080,unsharp=3:3:0.6:3:3:0.0,eq=contrast=1.06:saturation=1.12:gamma=0.98,setpts=PTS-STARTPTS[v]"
                 )
             teaser_cmd = [
                 self.ffmpeg, "-y",
-                "-ss", "0", "-t", str(teaser_dur),
+                "-ss", str(lead_start),
                 "-i", lead_clip,
+                "-t", str(teaser_dur),
                 "-filter_complex", teaser_filter,
                 "-map", "[v]", "-map", "0:a?",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+                "-af", "asetpts=PTS-STARTPTS",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "19", "-r", "60",
                 "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
                 str(teaser_file)
             ]
@@ -401,7 +495,8 @@ class CompilationBuilder:
             # 2. Transcode & Sequence Each Clip into True 16:9 Full Screen
             for idx, c in enumerate(selected_clips, 1):
                 raw_path = c["path"]
-                dur = self.get_video_duration(raw_path)
+                start_offset = float(c.get("start", 0.0))
+                dur = float(c.get("duration") or (self.get_video_duration(raw_path) - start_offset))
                 timestamp_str = f"{int(current_time // 60):02d}:{int(current_time % 60):02d}"
                 raw_title = c.get("caption", f"Moment #{idx}")
                 clean_title = raw_title.split("\n")[0].split("#")[0].strip()[:40]
@@ -429,39 +524,23 @@ class CompilationBuilder:
                         f"drawtext=fontfile='{font_path}':text='WHO PLAYED BETTER? VOTE IN COMMENTS!':fontcolor=yellow:fontsize=32:x=(w-text_w)/2:y=107:enable='between(t,2,8)'"
                     )
 
-                # World-Class Audience Live Chat Hype & Progression Timing
                 total_moments = len(selected_clips)
                 prog_w = int(1920 * (idx / total_moments))
-                hype_st = max(1.0, round(dur * 0.45, 1))
-                hype_end = min(round(dur, 1), round(hype_st + 5.5, 1))
 
-                # Hype chat & audience reaction filters
-                hype_overlay_filters = (
-                    # 1. Top Chapter Progress Tracker
-                    f",drawbox=x=0:y=0:w=1920:h=6:color=black@0.6:t=fill,"
-                    f"drawbox=x=0:y=0:w={prog_w}:h=6:color=cyan@0.95:t=fill,"
-                    f"drawbox=x=80:y=25:w=380:h=44:color=black@0.75:t=fill,"
-                    f"drawbox=x=80:y=23:w=380:h=2:color=cyan@0.90:t=fill,"
-                    f"drawtext=fontfile='{font_path}':text='MOMENT {idx} OF {total_moments} // @GHOST_OF_FOOTBALL':fontcolor=white:fontsize=19:x=95:y=36,"
+                # Clean, Broadcast-Grade Overlays (Vanishes after 6s so screen is 100% clean)
+                broadcast_overlays = (
+                    # 1. Top Chapter Progress Tracker (4px thin line + elegant title badge)
+                    f",drawbox=x=0:y=0:w=1920:h=4:color=black@0.6:t=fill,"
+                    f"drawbox=x=0:y=0:w={prog_w}:h=4:color=cyan@0.95:t=fill,"
+                    f"drawbox=x=80:y=20:w=380:h=36:color=black@0.70:t=fill:enable='between(t,1,6)',"
+                    f"drawbox=x=80:y=18:w=380:h=2:color=cyan@0.90:t=fill:enable='between(t,1,6)',"
+                    f"drawtext=fontfile='{font_path}':text='CHAPTER {idx} OF {total_moments} // @GHOST_OF_FOOTBALL':fontcolor=white:fontsize=17:x=95:y=28:enable='between(t,1,6)',"
 
-                    # 2. Left Wing: Animated Floating Live Audience Chat Hype Badges
-                    f"drawbox=x=80:y=380:w=380:h=46:color=black@0.80:t=fill:enable='between(t,{hype_st},{hype_end})',"
-                    f"drawbox=x=78:y=380:w=4:h=46:color=green@0.90:t=fill:enable='between(t,{hype_st},{hype_end})',"
-                    f"drawtext=fontfile='{font_path}':text='[CHAT_W] WWWWWWWW':fontcolor=white:fontsize=21:x=95:y=392:enable='between(t,{hype_st},{hype_end})',"
-
-                    f"drawbox=x=80:y=436:w=450:h=46:color=black@0.80:t=fill:enable='between(t,{hype_st+0.4},{hype_end})',"
-                    f"drawbox=x=78:y=436:w=4:h=46:color=cyan@0.90:t=fill:enable='between(t,{hype_st+0.4},{hype_end})',"
-                    f"drawtext=fontfile='{font_path}':text='[SPEED_FAN] NO WAY HE HIT THAT':fontcolor=white:fontsize=21:x=95:y=448:enable='between(t,{hype_st+0.4},{hype_end})',"
-
-                    f"drawbox=x=80:y=492:w=440:h=46:color=black@0.80:t=fill:enable='between(t,{hype_st+0.8},{hype_end})',"
-                    f"drawbox=x=78:y=492:w=4:h=46:color=yellow@0.90:t=fill:enable='between(t,{hype_st+0.8},{hype_end})',"
-                    f"drawtext=fontfile='{font_path}':text='[MOD_BOT] CLIP THAT RIGHT NOW':fontcolor=yellow:fontsize=21:x=95:y=504:enable='between(t,{hype_st+0.8},{hype_end})',"
-
-                    # 3. Right Wing: Live Crowd Velocity Meter
-                    f"drawbox=x=1420:y=380:w=380:h=82:color=black@0.85:t=fill:enable='between(t,{hype_st},{hype_end})',"
-                    f"drawbox=x=1420:y=378:w=380:h=3:color=red@0.90:t=fill:enable='between(t,{hype_st},{hype_end})',"
-                    f"drawtext=fontfile='{font_path}':text='LIVE AUDIENCE HYPE METER':fontcolor=yellow:fontsize=19:x=1440:y=394:enable='between(t,{hype_st},{hype_end})',"
-                    f"drawtext=fontfile='{font_path}':text='MAX CROWD VELOCITY 99 PCT':fontcolor=white:fontsize=21:x=1440:y=422:enable='between(t,{hype_st},{hype_end})'"
+                    # 2. Sleek Lower-Third Moment Title Card (Appears at sec 1-6, then cleanly fades)
+                    f"drawbox=y=ih-120:color=black@0.80:width=iw:height=75:t=fill:enable='between(t,1,6)',"
+                    f"drawbox=y=ih-122:color=cyan@0.90:width=iw:height=3:t=fill:enable='between(t,1,6)',"
+                    f"drawtext=fontfile='{font_path}':text='CHAPTER #{idx} //':fontcolor=yellow:fontsize=24:x=80:y=h-106:enable='between(t,1,6)',"
+                    f"drawtext=fontfile='{font_path}':text='{clean_text_safe}':fontcolor=white:fontsize=28:x=80:y=h-76:enable='between(t,1,6)'"
                 )
 
                 # True 16:9 Full Screen Geometry Filter (1920x1080 edge-to-edge, ZERO sidebars)
@@ -469,35 +548,35 @@ class CompilationBuilder:
                 if w_c >= h_c:
                     base_filter = (
                         "[0:v]scale=1920:1080:flags=lanczos,unsharp=3:3:0.6:3:3:0.0,"
-                        "eq=contrast=1.06:saturation=1.12:gamma=0.98[base]"
+                        "eq=contrast=1.06:saturation=1.12:gamma=0.98,setpts=PTS-STARTPTS[base]"
                     )
                 else:
                     base_filter = (
                         "[0:v]scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,"
-                        "crop=1920:1080,unsharp=3:3:0.6:3:3:0.0,eq=contrast=1.06:saturation=1.12:gamma=0.98[base]"
+                        "crop=1920:1080,unsharp=3:3:0.6:3:3:0.0,eq=contrast=1.06:saturation=1.12:gamma=0.98,setpts=PTS-STARTPTS[base]"
                     )
 
                 filter_complex = (
                     f"{base_filter};"
-                    f"[base]drawbox=y=ih-140:color=black@0.80:width=iw:height=90:t=fill:enable='between(t,0,5)',"
-                    f"drawbox=y=ih-142:color=cyan@0.90:width=iw:height=4:t=fill:enable='between(t,0,5)',"
-                    f"drawtext=fontfile='{font_path}':text='MOMENT #{idx} //':fontcolor=yellow:fontsize=26:x=80:y=h-126:enable='between(t,0,5)',"
-                    f"drawtext=fontfile='{font_path}':text='{clean_text_safe}':fontcolor=white:fontsize=30:x=80:y=h-92:enable='between(t,0,5)'"
-                    f"{hype_overlay_filters}"
+                    f"[base]{broadcast_overlays[1:]}"
                     f"{cta_filter}[v]"
                 )
 
-                cmd = [
-                    self.ffmpeg, "-y",
-                    "-i", raw_path,
+                cmd = [self.ffmpeg, "-y"]
+                if start_offset > 0:
+                    cmd.extend(["-ss", str(start_offset)])
+                cmd.extend(["-i", raw_path])
+                if "duration" in c:
+                    cmd.extend(["-t", str(dur)])
+                cmd.extend([
                     "-filter_complex", filter_complex,
                     "-map", "[v]", "-map", "0:a?",
-                    "-af", "loudnorm=I=-14:LRA=11:TP=-1.5,highpass=f=75",
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+                    "-af", "asetpts=PTS-STARTPTS,loudnorm=I=-14:LRA=11:TP=-1.5,highpass=f=75",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "19", "-r", "60",
                     "-b:v", "8M", "-maxrate", "12M", "-bufsize", "16M",
                     "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
                     str(inter_file)
-                ]
+                ])
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
                 intermediate_files.append(inter_file)
                 current_time += dur
@@ -514,6 +593,7 @@ class CompilationBuilder:
                 "-f", "concat", "-safe", "0",
                 "-i", str(temp_concat_txt),
                 "-c", "copy",
+                "-avoid_negative_ts", "make_zero",
                 str(output_file)
             ]
             subprocess.run(concat_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)

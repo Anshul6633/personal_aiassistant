@@ -91,7 +91,8 @@ async def lifespan(app: FastAPI):
     clipper_task = asyncio.create_task(
         livestream_clipper.run_continuous_pipeline(
             live_url="https://www.youtube.com/watch?v=irNhWMG560k",
-            alternate_url="https://www.youtube.com/live/qSyo5d-dVzA"
+            alternate_url="https://www.youtube.com/live/qSyo5d-dVzA",
+            auto_schedule_social=False
         )
     )
     yield
@@ -1108,6 +1109,7 @@ class YouTubeBrowserUploadRequest(BaseModel):
     tags: Optional[List[str]] = []
     privacy: Optional[str] = "public"
     headless: Optional[bool] = False
+    thumbnail_path: Optional[str] = None
 
 
 @app.post("/api/social/youtube/browser-upload")
@@ -1139,7 +1141,8 @@ async def api_youtube_browser_upload(req: YouTubeBrowserUploadRequest):
         description=req.description or "",
         tags=req.tags,
         privacy=req.privacy or "public",
-        headless=req.headless or False
+        headless=req.headless or False,
+        thumbnail_path=req.thumbnail_path
     )
 
     if not res.get("success"):
@@ -1307,6 +1310,13 @@ async def instagram_status():
 async def get_instagram_browser_status():
     """Fast check of Instagram session cookies in persistent browser profile."""
     return await instagram_browser.check_login_status()
+
+
+@app.get("/api/social/instagram/shadowban-check")
+async def get_instagram_shadowban_check():
+    """Pre-upload shadowban & algorithmic suppression health audit."""
+    from jarvis.backend.social.anti_ban_guard import anti_ban_guard
+    return anti_ban_guard.check_instagram_shadowban_health()
 
 
 @app.post("/api/social/instagram/browser-login")

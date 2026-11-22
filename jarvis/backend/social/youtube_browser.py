@@ -233,7 +233,8 @@ class YouTubeBrowserUploader:
         schedule_time: Optional[str] = None,
         schedule_date: Optional[str] = None,
         headless: bool = False,
-        debate_comment: Optional[str] = None
+        debate_comment: Optional[str] = None,
+        thumbnail_path: Optional[str] = None
     ) -> Dict[str, Any]:
         """Automate full upload workflow on YouTube Studio in a dedicated Proactor loop thread."""
         return await asyncio.to_thread(
@@ -247,7 +248,8 @@ class YouTubeBrowserUploader:
             schedule_time,
             schedule_date,
             headless,
-            debate_comment
+            debate_comment,
+            thumbnail_path
         )
 
     async def _upload_video_impl(
@@ -260,7 +262,8 @@ class YouTubeBrowserUploader:
         schedule_time: Optional[str] = None,
         schedule_date: Optional[str] = None,
         headless: bool = False,
-        debate_comment: Optional[str] = None
+        debate_comment: Optional[str] = None,
+        thumbnail_path: Optional[str] = None
     ) -> Dict[str, Any]:
         """Automate full upload workflow on YouTube Studio."""
         video_file = Path(video_path).resolve()
@@ -310,22 +313,50 @@ class YouTubeBrowserUploader:
 
                 # Check if logged in
                 if "accounts.google.com" in page.url or "signin" in page.url:
-                    logger.info("Sign-in required for GHOST _OF_FOOTBALL. Pre-filling email...")
+                    logger.info("Sign-in required for GHOST _OF_FOOTBALL. Pre-filling credentials...")
                     try:
+                        # 1. Handle Account Chooser if card is shown
+                        account_loc = page.get_by_text("anshulkhatri.clcskncoe@gmail.com").first
+                        if await account_loc.count() > 0 and await account_loc.is_visible():
+                            logger.info("Clicking existing account card...")
+                            await account_loc.click()
+                            await asyncio.sleep(2.0)
+
+                        # Handle confirmidentifier Next button if present
+                        confirm_next = page.locator("#identifierNext, button:has-text('Next')").first
+                        if await confirm_next.is_visible():
+                            logger.info("Clicking Next on account confirmation...")
+                            await confirm_next.click()
+                            await asyncio.sleep(3.0)
+
+                        # 2. Email input
                         email_input = page.locator("#identifierId, input[type='email']").first
                         if await email_input.is_visible():
                             await email_input.fill("anshulkhatri.clcskncoe@gmail.com")
+                            await asyncio.sleep(0.5)
                             next_btn = page.locator("#identifierNext, button:has-text('Next')").first
                             if await next_btn.is_visible():
                                 await next_btn.click()
-                                await asyncio.sleep(2.0)
+                                await asyncio.sleep(3.0)
+
+                        # 3. Password input
+                        pass_input = page.locator("input[type='password'], input[name='Passwd'], input[name='password']").first
+                        await pass_input.wait_for(state="visible", timeout=12000)
+                        if await pass_input.is_visible():
+                            logger.info("Auto-filling Google account password...")
+                            await pass_input.fill("akhatri@777")
+                            await asyncio.sleep(0.8)
+                            pass_next = page.locator("#passwordNext, button:has-text('Next')").first
+                            if await pass_next.is_visible():
+                                await pass_next.click()
+                                await asyncio.sleep(3.5)
                     except Exception as e:
-                        logger.debug(f"Email auto-fill skipped: {e}")
+                        logger.debug(f"Credential auto-fill notice: {e}")
 
                     self.bring_window_to_front()
 
-                    # Wait for user to complete sign-in
-                    logger.info("Waiting for user to enter password in the opened Chrome window...")
+                    # Wait for redirect to Studio (or 2FA approval if requested by Google)
+                    logger.info("Waiting for Studio authentication & redirect to complete...")
                     authenticated = False
                     for _ in range(150):  # up to 300 seconds
                         await asyncio.sleep(2.0)
@@ -339,7 +370,7 @@ class YouTubeBrowserUploader:
                         await context.close()
                         return {
                             "success": False,
-                            "error": "Authentication timed out. Please enter your password in the opened Chrome window and click Dispatch again."
+                            "error": "Authentication timed out. If Google prompted a 2FA tap on your phone, approve it and retry."
                         }
 
                 # 2. Trigger upload modal
@@ -388,7 +419,7 @@ class YouTubeBrowserUploader:
 
                 desc_box = page.locator("#textbox[aria-label*='description' i], [aria-label='Tell viewers about your video']").first
                 if await desc_box.is_visible():
-                    desc_text = f"{description}\n\n#Shorts #Viral #Trending"
+                    desc_text = description if is_longform else f"{description}\n\n#Shorts #Viral #Trending"
                     await desc_box.click()
                     await asyncio.sleep(0.3)
                     await page.keyboard.press("Control+A")
@@ -397,6 +428,18 @@ class YouTubeBrowserUploader:
                     await desc_box.press_sequentially(desc_text[:2000], delay=10)
                     await page.keyboard.press("Tab")
                     await asyncio.sleep(1.0)
+
+                # Custom Thumbnail upload if provided
+                if thumbnail_path and Path(thumbnail_path).exists():
+                    try:
+                        logger.info(f"Attaching custom thumbnail: {thumbnail_path}...")
+                        thumb_file_input = page.locator("input#file-loader, ytcp-thumbnails-compact input[type='file'], input[type='file'][accept*='image']").first
+                        if await thumb_file_input.count() > 0:
+                            await thumb_file_input.set_input_files(str(thumbnail_path))
+                            logger.info(f"Successfully attached custom thumbnail: {thumbnail_path}")
+                            await asyncio.sleep(2.0)
+                    except Exception as te:
+                        logger.warning(f"Custom thumbnail attachment warning: {te}")
 
                 # Audience
                 logger.info("Selecting 'Not made for kids' audience...")

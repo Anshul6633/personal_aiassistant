@@ -33,6 +33,7 @@ jarvis/browser_profile/
 browser_profile/
 jarvis/browser_profile_instagram/
 browser_profile_instagram/
+jarvis/backend/storage/
 jarvis/instagram_session.json
 jarvis/backend/social/direct_ig_login.py
 jarvis/playwright_profile/

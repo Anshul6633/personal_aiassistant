@@ -112,10 +112,9 @@ class LongformThumbnailDesigner:
         else:
             with Image.open(base_frame_path) as b_img:
                 b_rgb = b_img.convert("RGB")
-                bg_blurred = b_rgb.resize((w, h), Image.Resampling.LANCZOS).filter(ImageFilter.GaussianBlur(radius=25))
-                canvas.paste(bg_blurred, (0, 0))
-                center_hero = self.crop_to_fill(b_rgb, 1400, 1080, focus_y=0.35)
-                canvas.paste(center_hero, (260, 0))
+                # 100% Full-bleed edge-to-edge 1920x1080 canvas (ZERO blurred sidebars)
+                full_hero = self.crop_to_fill(b_rgb, w, h, focus_y=0.40)
+                canvas.paste(full_hero, (0, 0))
 
         # 2. Viral Color & Contrast Grading (+22% Contrast, +28% Saturation, +30% Sharpness)
         canvas = ImageEnhance.Contrast(canvas).enhance(1.22)

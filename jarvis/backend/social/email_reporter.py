@@ -44,7 +44,7 @@ class EmailReporter:
         cur = conn.cursor()
 
         # YouTube Stats
-        cur.execute("SELECT COUNT(*) FROM clips WHERE status = 'PUBLISHED' OR published_youtube IS NOT NULL")
+        cur.execute("SELECT COUNT(*) FROM youtube_schedule_queue WHERE status = 'PUBLISHED'")
         yt_published = cur.fetchone()[0]
 
         cur.execute("SELECT COUNT(*) FROM youtube_schedule_queue WHERE status = 'QUEUED'")
@@ -108,7 +108,7 @@ class EmailReporter:
                 "compilations_built": comp_count,
                 "estimated_watch_hours": est_watch_hours,
                 "target_watch_hours": 4000,
-                "cadence": "Every 8 Hours (08:00 AM, 04:00 PM, 12:00 AM)"
+                "cadence": "Strictly 3 Long Videos/Week (Prime Time Drops)"
             },
             "storage": {
                 "c_free_gb": drives_stat.get("primary_free_gb", 6.1),
@@ -188,14 +188,14 @@ class EmailReporter:
         <div class="metric-card">
           <div class="metric-label">YouTube Shorts Pipeline</div>
           <div class="metric-value">{data['youtube']['published']} <span style="font-size: 13px; color: #94a3b8;">/ {data['youtube']['queued']} Queued</span></div>
-          <div class="metric-sub">Buffer scheduled till Jan 19, 2027</div>
+          <div class="metric-sub">Strict 4 Shorts/Day Cadence (Zero Mass-Spam)</div>
         </div>
       </div>
       <div class="metric-cell" style="padding-right: 0;">
         <div class="metric-card">
           <div class="metric-label">Instagram Reels Reach</div>
           <div class="metric-value" style="color: #c084fc;">{data['instagram']['published']} <span style="font-size: 13px; color: #94a3b8;">/ {data['instagram']['queued']} Queued</span></div>
-          <div class="metric-sub">4 Global Windows Daily (09:00 AM, 02:00 PM, 06:30 PM, 11:00 PM)</div>
+          <div class="metric-sub">Strict 4 Reels/Day Cadence (4h+ Pacing)</div>
         </div>
       </div>
     </div>
@@ -265,15 +265,15 @@ class EmailReporter:
             f"1. YOUTUBE SHORTS PIPELINE:\n"
             f"   • Published: {data['youtube']['published']}\n"
             f"   • Queued: {data['youtube']['queued']}\n"
-            f"   • Cadence: Buffer scheduled through {data['youtube']['last_scheduled']}\n\n"
+            f"   • Cadence: Strictly 4 Shorts Daily (4h+ Pacing)\n\n"
             f"2. INSTAGRAM REELS REACH:\n"
             f"   • Published: {data['instagram']['published']}\n"
             f"   • Queued: {data['instagram']['queued']}\n"
-            f"   • Cadence: 4 Global Windows Daily (09:00 AM, 02:00 PM, 06:30 PM, 11:00 PM)\n\n"
+            f"   • Cadence: Strictly 4 Reels Daily (4h+ Pacing)\n\n"
             f"3. 4,000 WATCH HOURS MONETIZATION:\n"
             f"   • Estimated Hours: {data['longform']['estimated_watch_hours']} / 4,000 hrs\n"
             f"   • Compilations Built: {data['longform']['compilations_built']}\n"
-            f"   • Cadence: Every 8 Hours (08:00 AM, 04:00 PM, 12:00 AM)\n\n"
+            f"   • Cadence: Strictly 3 Long Videos/Week (Prime Time Drops)\n\n"
             f"4. 2026 RETENTION RULES STATUS:\n"
             f"   • 0.0s Climax Injection: {data['retention_rules']['climax_injection']}\n"
             f"   • Audio-First Loop: {data['retention_rules']['loop_crossfade']}\n"
@@ -285,6 +285,28 @@ class EmailReporter:
             f"- JARVIS Autonomous AI Assistant"
         )
 
+    def _cleanup_profile_locks(self):
+        """Clean up orphaned lockfiles and lingering chrome instances before launching."""
+        try:
+            import psutil
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['name'] and 'chrome' in proc.info['name'].lower():
+                        cmdline = ' '.join(proc.info['cmdline'] or [])
+                        if 'browser_profile' in cmdline:
+                            proc.kill()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        profile_path = Path(self.profile_dir)
+        for lock_name in ["lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket"]:
+            try:
+                (profile_path / lock_name).unlink(missing_ok=True)
+            except Exception:
+                pass
+
     async def send_email_via_browser(self, subject: str, body_text: str, body_html: Optional[str] = None) -> Dict[str, Any]:
         """Dispatch email using the persistent authenticated Google profile in Playwright."""
         if self.is_sending:
@@ -292,12 +314,18 @@ class EmailReporter:
 
         self.is_sending = True
         logger.info(f"Opening authenticated Google session in Chrome to email {self.recipient}...")
+        self._cleanup_profile_locks()
 
         async with async_playwright() as p:
             launch_kwargs = {
                 "user_data_dir": self.profile_dir,
-                "headless": True,
-                "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+                "headless": False,
+                "args": [
+                    "--disable-blink-features=AutomationControlled",
+                    "--start-maximized",
+                    "--no-sandbox"
+                ],
+                "ignore_default_args": ["--enable-automation"]
             }
             try:
                 context = await p.chromium.launch_persistent_context(**launch_kwargs, channel="chrome")
@@ -307,86 +335,33 @@ class EmailReporter:
             page = context.pages[0] if context.pages else await context.new_page()
 
             try:
-                # Navigate to Gmail inbox safely handling Google redirect loops
-                logger.info("Navigating to Gmail...")
-                try:
-                    await page.goto("https://mail.google.com/mail/u/0/", timeout=45000, wait_until="load")
-                except Exception as ne:
-                    if "ERR_ABORTED" in str(ne) or "mail.google.com" in page.url:
-                        logger.debug(f"Gmail redirect caught safely: {ne}")
-                    else:
-                        logger.warning(f"Initial navigation notice: {ne}")
+                import urllib.parse
+                params = {
+                    "view": "cm",
+                    "fs": "1",
+                    "to": self.recipient,
+                    "su": subject,
+                    "body": body_text
+                }
+                compose_url = f"https://mail.google.com/mail/u/0/?{urllib.parse.urlencode(params)}"
+                logger.info(f"Navigating to Gmail Compose URL...")
+                await page.goto(compose_url, timeout=45000, wait_until="domcontentloaded")
                 await asyncio.sleep(3.5)
 
-                # Locate recipient input or click Compose
-                to_selectors = [
-                    "input[aria-label='To recipients']",
-                    "input[peoplekit-id]",
-                    "div[aria-label='To'] input",
-                    "[name='to']",
-                    "div[aria-label*='To' i] input",
-                    "input.agP",
-                    "table tbody tr td input"
-                ]
-                to_input = None
-                for sel in to_selectors:
-                    el = page.locator(sel).first
-                    if await el.is_visible():
-                        to_input = el
-                        break
+                # Locate Send button
+                send_btn = page.locator("div[role='button']:has-text('Send'), div[aria-label*='Send' i][role='button']").first
+                await send_btn.wait_for(state="visible", timeout=15000)
+                logger.info("Clicking Send button in Gmail...")
+                await send_btn.click(force=True)
+                await asyncio.sleep(2.5)
 
-                if not to_input:
-                    # Click Compose button if compose modal is not yet open
-                    compose_btn = page.locator("div[role='button']:has-text('Compose'), div:has-text('Compose')[role='button'], div.T-I.T-I-KE.L3, [aria-label*='Compose' i]").first
-                    if await compose_btn.is_visible():
-                        logger.info("Clicking Compose button in Gmail...")
-                        await compose_btn.click(force=True)
-                        await asyncio.sleep(2.5)
-                        for sel in to_selectors:
-                            el = page.locator(sel).first
-                            if await el.is_visible():
-                                to_input = el
-                                break
-
-                if not to_input:
-                    raise RuntimeError("Could not find Gmail recipient input field.")
-
-                # Fill recipient
-                await to_input.click(force=True)
-                await to_input.fill(self.recipient)
-                await to_input.press("Enter")
-                await asyncio.sleep(0.5)
-
-                # Fill subject
-                subject_input = page.locator("input[name='subjectbox'], input[aria-label='Subject'], input[placeholder='Subject']").first
-                if await subject_input.is_visible():
-                    await subject_input.click(force=True)
-                    await subject_input.fill(subject)
-                    await asyncio.sleep(0.5)
-
-                # Fill message body
-                body_input = page.locator("div[aria-label='Message Body'], div[role='textbox'][aria-label*='Message Body' i], div[role='textbox']").first
-                if await body_input.is_visible():
-                    await body_input.click(force=True)
-                    await body_input.fill(body_text)
-                    await asyncio.sleep(1.0)
-
-                    # Click actual Send button
-                    logger.info("Clicking Send button in Gmail...")
-                    send_btn = page.locator("div[role='button']:has-text('Send'), div[aria-label*='Send' i][role='button'], div.T-I.J-J5-Ji.aoO.v7.T-I-atl.L3").first
-                    if await send_btn.is_visible():
-                        await send_btn.click(force=True)
-                    else:
-                        await page.keyboard.press("Control+Enter")
-
-                    # Wait for 'Message sent' toast confirmation from Google
-                    try:
-                        toast = page.locator("text='Message sent'").first
-                        await toast.wait_for(state="visible", timeout=12000)
-                        logger.info("CONFIRMED: 'Message sent' toast confirmed from Gmail!")
-                    except Exception as te:
-                        logger.debug(f"Toast wait completed: {te}")
-                    await asyncio.sleep(2.5)
+                # Confirm message sent
+                try:
+                    toast = page.locator("text='Message sent'").first
+                    await toast.wait_for(state="visible", timeout=8000)
+                    logger.info("CONFIRMED: 'Message sent' toast confirmed from Gmail!")
+                except Exception as te:
+                    logger.debug(f"Toast wait completed: {te}")
 
                 await context.close()
                 self.is_sending = False

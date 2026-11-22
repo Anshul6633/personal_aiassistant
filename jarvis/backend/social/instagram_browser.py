@@ -259,16 +259,19 @@ class InstagramBrowserUploader:
             cl.delay_range = [1, 2]
             cl.load_settings(str(INSTAGRAM_SESSION_PATH))
 
-            # Assemble caption & clean hashtags
+            # Pre-Upload Shadowban & Spam Sanitization
+            from jarvis.backend.social.anti_ban_guard import anti_ban_guard
+            health = anti_ban_guard.check_instagram_shadowban_health()
+            if not health.get("healthy", True):
+                logger.warning(f"⚠️ Instagram Health Warning before upload: {health.get('reason')}")
+            if health.get("shadowbanned"):
+                logger.warning(f"🚨 Algorithmic Suppression Flag: {health.get('suppression_warning')}")
+
+            # Assemble caption & clean hashtags using Anti-Ban Sanitizer
             full_caption = caption.strip()
-            clean_tags = []
-            if tags:
-                for t in tags:
-                    ct = t.strip().lstrip("#")
-                    if ct:
-                        clean_tags.append(f"#{ct}")
+            clean_tags = anti_ban_guard.sanitize_hashtags(tags or [])
             if clean_tags:
-                full_caption += "\n.\n.\n" + " ".join(clean_tags)
+                full_caption += "\n\n" + " ".join(clean_tags)
 
             # Determine thumbnail
             thumb = None
@@ -296,21 +299,9 @@ class InstagramBrowserUploader:
             reel_url = f"https://www.instagram.com/reel/{media.code}/"
             logger.info(f"🎉 Instagram Reel successfully published! {reel_url}")
 
-            # Algorithmic Reach Multiplier: Immediately post a conversation-starter comment to ignite early engagement
-            # 2026 Golden Rule #4: Deploy Pinned Debate Comment immediately upon publishing
-            try:
-                from jarvis.backend.video.metadata_generator import generate_debate_comment
-                first_comment = generate_debate_comment(title=video_file.stem, summary=caption)
-                c_obj = cl.media_comment(media.id, first_comment)
-                logger.info(f"💬 [Golden Rule #4 Debate Hook] Automated first comment posted: '{first_comment}'")
-                try:
-                    if hasattr(cl, "comment_pin") and hasattr(c_obj, "pk"):
-                        cl.comment_pin(media.id, c_obj.pk)
-                        logger.info(f"📌 [Pinned Debate Comment] Successfully pinned comment {c_obj.pk} on Reel!")
-                except Exception as pe:
-                    logger.debug(f"Instagram comment pin note: {pe}")
-            except Exception as ce:
-                logger.warning(f"Could not post reach multiplier comment: {ce}")
+            # Anti-Shadowban Guard: Disable robotic instant self-commenting to protect account trust score
+            # In 2026, instant API comments from the uploader account trigger Instagram spam classifiers
+            logger.info("🛡️ [Anti-Shadowban] Bypassing immediate API self-comment to protect account trust score.")
 
             # Update Anti-Ban Guard
             try:
