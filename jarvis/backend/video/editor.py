@@ -49,6 +49,13 @@ EMPHASIS_KEYWORDS = {
     "wanted", "heist", "wasted", "busted", "nitro", "drift", "speed", "stars"
 }
 
+# High-Risk YouTube 18+ & Demonetization Blacklist (Strictly Redacted in Opening 7 Seconds)
+PROFANITY_CENSOR_TERMS = {
+    "fuck", "fucking", "fucked", "fucker", "bitch", "shit", "dick", "pussy",
+    "chutiya", "bhenchod", "madarchod", "gand", "gaand", "lund", "chud",
+    "bhosadike", "chutiye", "kamine", "harami", "bastard", "nigga", "nigger"
+}
+
 # The Visual Subtitle Presets (Format: Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, MarginV)
 STYLE_PRESETS = {
     "gta6": {
@@ -285,7 +292,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             for w_idx, w in enumerate(chunk):
                 raw_w = w["word"].strip()
                 clean_w = raw_w.lower().strip(".,!?:;\"'()[]")
-                if clean_w in EMPHASIS_KEYWORDS:
+                rel_w_time = max(0.0, w.get("start", chunk[0]["start"]) - clip_start)
+
+                # 2026 Monetization Safeguard: Auto-redact profanity in opening 7.5s to prevent 18+ strike & demonetization
+                if rel_w_time <= 7.5 and clean_w in PROFANITY_CENSOR_TERMS:
+                    chunk_tokens.append(f"{{\\c&H000000FF&\\b1}}[BLEEP]{{\\c{preset['primary']}&\\b{preset.get('bold', -1)}}}")
+                elif clean_w in EMPHASIS_KEYWORDS:
                     # In GTA6 preset, alternate between Vice Flamingo Pink and Electric Cyan for true GTA VI neon styling
                     if style.lower() in ("gta6", "gta_vi", "gta"):
                         w_color = "&H00852AFF" if (i + w_idx) % 2 == 0 else "&H00FFF500"
@@ -356,7 +368,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         inject_voiceover: bool = False,
         voiceover_text: Optional[str] = None,
         voiceover_type: str = "hook",
-        voiceover_lang: str = "en"
+        voiceover_lang: str = "en",
+        enable_punch_zoom: bool = True,
+        censor_opening_audio: bool = True
     ) -> Dict[str, str]:
         """Cut video, re-frame to 1080x1920 (9:16), burn subtitles, duck trending background music, and normalize audio.
 
@@ -414,6 +428,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         else:
             filter_complex += ";[base]eq=contrast=1.06:saturation=1.12:gamma=0.98[graded]"
             curr_v_label = "[graded]"
+
+        # Golden Rule #8: 2026 Dynamic Punch Zoom Pattern Interrupts (Resets human attention every ~3s)
+        if enable_punch_zoom and duration >= 8.0:
+            punch_filter = (
+                "crop=w='if(between(mod(t, 6.0), 2.5, 4.5), 940, 1080)':"
+                "h='if(between(mod(t, 6.0), 2.5, 4.5), 1670, 1920)':"
+                "x=(1080-out_w)/2:y=(1920-out_h)/2,scale=1080:1920:flags=lanczos"
+            )
+            filter_complex += f";{curr_v_label}{punch_filter}[punched]"
+            curr_v_label = "[punched]"
 
         final_video_label = curr_v_label
         if subtitles_ass and Path(subtitles_ass).exists():

@@ -256,6 +256,20 @@ class VideoPipeline:
                 raw_title = enriched.get("title") or (cand["text"][:40] if cand.get("text") else f"Highlight {idx}")
                 viral_title = format_viral_shorts_title(raw_title)
 
+                # 2026 Elite Editor Rule: Frame-1 Vocal / Action Velocity (0.0s Dead-Air Trimmer)
+                cand_words = [w for w in transcript.get("words", []) if w["start"] >= cand["start_time"] and w["end"] <= cand["end_time"]]
+                if cand_words:
+                    lead_silence = cand_words[0]["start"] - cand["start_time"]
+                    if lead_silence > 0.35:
+                        logger.info(f"Trimming {lead_silence:.2f}s leading dead air for {clip_label}")
+                        cand["start_time"] = max(0.0, cand_words[0]["start"] - 0.15)
+                        cand["duration"] = cand["end_time"] - cand["start_time"]
+
+                # 2026 Sweet Spot Rule: 16-22s duration for maximum looping APV (>100%)
+                if cand["duration"] > 22.0:
+                    cand["end_time"] = cand["start_time"] + 21.0
+                    cand["duration"] = 21.0
+
                 # Generate ASS subtitles for this specific clip time window & layout structure with Top Hook Banner
                 ass_path = str(SUBS_DIR / f"{clip_label}.ass")
                 video_editor.generate_ass_subtitles(
